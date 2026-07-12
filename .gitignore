@@ -1,0 +1,38 @@
+node_modules/
+dist/
+playwright-report/
+test-results/
+coverage/
+.nyc_output/
+blob-report/
+playwright/.cache/
+
+# Local diagnostics and logs
+*.log
+logs/
+diagnostic-logs/
+
+# Local environment configuration
+.env
+.env.*
+!.env.example
+*.local
+
+# Temporary and tool state
+.vite/
+.eslintcache
+*.tsbuildinfo
+*.tmp
+*.temp
+tmp/
+temp/
+
+# Editor and operating-system files
+.vscode/
+.idea/
+*.code-workspace
+*.swp
+*.swo
+*.bak
+.DS_Store
+Thumbs.db
