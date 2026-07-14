@@ -27,8 +27,8 @@ async function stopServer(server) {
   }
 }
 
-async function runSuite({ label, port, serverArguments, testFile }) {
-  const baseUrl = `http://${host}:${port}`;
+async function runSuite({ label, port, serverArguments, basePath, testFile }) {
+  const baseUrl = `http://${host}:${port}${basePath}`;
   const server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', ...serverArguments], {
     stdio: 'ignore',
     windowsHide: true,
@@ -61,12 +61,14 @@ const suites = [
     label: 'Vite production preview',
     port: '4173',
     serverArguments: ['preview', '--host', host, '--port', '4173'],
+    basePath: '/planibly/',
     testFile: 'tests/e2e/shell.spec.ts',
   },
   {
     label: 'Vite development server',
     port: '5173',
     serverArguments: ['--host', host, '--port', '5173', '--strictPort'],
+    basePath: '/',
     testFile: 'tests/e2e/development-shell.spec.ts',
   },
 ];

@@ -1,4 +1,4 @@
-import { Outlet, useLocation } from 'react-router-dom';
+import { Link, Outlet, useLocation } from 'react-router-dom';
 
 import { AppNavigation } from './AppNavigation';
 import { Icon } from './Icon';
@@ -23,12 +23,12 @@ export function AppShell() {
         Skip to main content
       </a>
       <nav className="side-navigation" aria-label="Primary navigation">
-        <a className="brand" href="/" aria-label="Planibly home">
+        <Link className="brand" to="/" aria-label="Planibly home">
           <span className="brand-mark" aria-hidden="true">
             P
           </span>
           <span>Planibly</span>
-        </a>
+        </Link>
         <AppNavigation layout="side" />
         <p className="privacy-note">Private by design. Your data stays on this device.</p>
       </nav>

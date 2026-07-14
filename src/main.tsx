@@ -9,6 +9,24 @@ import { initializeDatabase } from './data/database';
 import { logDiagnostic } from './diagnostics/logger';
 import './styles/index.css';
 
+function restoreGitHubPagesRoute(): void {
+  const parameters = new URLSearchParams(window.location.search);
+  const route = parameters.get('_ghp_route');
+
+  if (route === null) return;
+
+  const originalQuery = parameters.get('_ghp_query');
+  const query = originalQuery ? `?${originalQuery}` : '';
+  const cleanedRoute = route.replace(/^\/+/, '');
+  window.history.replaceState(
+    null,
+    '',
+    `${import.meta.env.BASE_URL}${cleanedRoute}${query}${window.location.hash}`,
+  );
+}
+
+restoreGitHubPagesRoute();
+
 void initializeDatabase().catch((error: unknown) => {
   void logDiagnostic('error', 'database.initialization_failed', error);
 });
@@ -30,7 +48,7 @@ if (!rootElement) {
 createRoot(rootElement).render(
   <StrictMode>
     <ErrorBoundary>
-      <BrowserRouter>
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
         <App />
         <UpdatePrompt />
       </BrowserRouter>

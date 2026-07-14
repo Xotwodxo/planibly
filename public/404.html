@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Opening Planibly</title>
+  </head>
+  <body>
+    <script>
+      (() => {
+        const basePath = '/planibly/';
+        const { pathname, search, hash } = window.location;
+
+        if (!pathname.startsWith(basePath)) return;
+
+        const route = pathname.slice(basePath.length);
+        const query = search.length > 1 ? `&_ghp_query=${encodeURIComponent(search.slice(1))}` : '';
+        window.location.replace(
+          `${basePath}?_ghp_route=${encodeURIComponent(route)}${query}${hash}`,
+        );
+      })();
+    </script>
+  </body>
+</html>

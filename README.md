@@ -50,8 +50,10 @@ npx.cmd playwright install chromium
 npm.cmd run test:e2e
 ```
 
-`verify:pwa` inspects `dist/`, so run the production build first. Playwright starts a production
-preview and verifies the manifest, responsive navigation, and offline reload behavior.
+`verify:pwa` inspects `dist/`, so run the production build first. Playwright starts both a
+GitHub-Pages-style production preview at `/planibly/` and a root-based development server. It
+verifies the manifest, service-worker scope, direct route refreshes, responsive navigation, and
+offline reload behavior.
 
 To preview the built PWA manually:
 
@@ -69,9 +71,32 @@ development; a deployed build must use HTTPS.
 npm.cmd run build
 ```
 
-The static output is written to `dist/`. It can be hosted on a free static host. The current router
-uses clean history URLs, so a host must rewrite unknown routes to `index.html`. If GitHub Pages is
-selected later, its SPA fallback/base-path behavior must be configured at deployment time.
+The static output is written to `dist/` for the GitHub Pages project path `/planibly/`. The build
+uses a root base path only in local development; do not use the production output as though it were
+hosted at `/`.
+
+## GitHub Pages deployment
+
+The expected public URL is [https://xotwodxo.github.io/planibly/](https://xotwodxo.github.io/planibly/).
+
+The checked-in workflow at `.github/workflows/deploy-pages.yml` runs on every push to `main` and:
+
+- installs dependencies with `npm ci`;
+- runs formatting, linting, type checking, unit/component tests, PWA verification, and end-to-end tests;
+- builds `dist/` and deploys it through GitHub Pages.
+
+Before the first deployment, open the GitHub repository’s **Settings → Pages**. Under **Build and
+deployment**, select **Source: GitHub Actions**. No branch/folder Pages source should be selected.
+
+To deploy manually, open **Actions → Deploy Planibly to GitHub Pages → Run workflow**, select
+`main`, then choose **Run workflow**.
+
+GitHub Pages does not provide SPA rewrites for project sites. `public/404.html` redirects a direct
+route such as `/planibly/plan` back to the application shell, where the router restores the route.
+
+To roll back a deployment, revert the problematic commit on `main` (using GitHub’s **Revert** action
+or a normal local revert), then push the revert. The workflow deploys the restored build. Do not
+force-push to roll back.
 
 ## Architecture boundaries
 
@@ -82,5 +107,5 @@ selected later, its SPA fallback/base-path behavior must be configured at deploy
 - The service-worker update prompt requires explicit user action. Future forms must integrate an
   unsaved-change guard before accepting an update.
 
-See [docs/phase-0-architecture.md](docs/phase-0-architecture.md) for further decisions and the
+See [Docs/phase-0-architecture.md](Docs/phase-0-architecture.md) for further decisions and the
 manual device checks required before Phase 1.
