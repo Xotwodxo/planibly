@@ -1,5 +1,8 @@
+import { useEffect, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 
+import { OPEN_QUICK_ADD_EVENT } from '../features/planner/plannerEvents';
+import { QuickAddDialog } from '../features/planner/QuickAddDialog';
 import { AppNavigation } from './AppNavigation';
 import { Icon } from './Icon';
 import { IconButton } from './ui/IconButton';
@@ -16,6 +19,13 @@ const titles: Record<string, string> = {
 export function AppShell() {
   const { pathname } = useLocation();
   const title = titles[pathname] ?? 'Planibly';
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+
+  useEffect(() => {
+    const open = () => setQuickAddOpen(true);
+    window.addEventListener(OPEN_QUICK_ADD_EVENT, open);
+    return () => window.removeEventListener(OPEN_QUICK_ADD_EVENT, open);
+  }, []);
 
   return (
     <div className="app-shell">
@@ -50,10 +60,16 @@ export function AppShell() {
           <Outlet />
         </main>
 
+        <button className="quick-add-fab" type="button" onClick={() => setQuickAddOpen(true)}>
+          <span aria-hidden="true">+</span>
+          <span>Quick Add</span>
+        </button>
+
         <nav className="bottom-navigation" aria-label="Primary navigation">
           <AppNavigation layout="bottom" />
         </nav>
       </div>
+      {quickAddOpen ? <QuickAddDialog onClose={() => setQuickAddOpen(false)} /> : null}
     </div>
   );
 }

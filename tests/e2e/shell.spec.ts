@@ -86,7 +86,72 @@ test('uses bottom navigation on a mobile viewport', async ({ page }, testInfo) =
   await expect(page.locator('.bottom-navigation')).toBeVisible();
   await expect(page.locator('.side-navigation')).toBeHidden();
   await page.locator('.bottom-navigation').getByRole('link', { name: 'Lists' }).click();
-  await expect(page.getByRole('heading', { name: 'Keep life gently organised' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your lists' })).toBeVisible();
+});
+
+test('persists the primary mobile organisation flow through reload and offline use', async ({
+  page,
+  context,
+}, testInfo) => {
+  test.skip(!testInfo.project.name.includes('mobile'), 'Mobile-only Phase 1A flow');
+  await page.goto(githubPagesBasePath);
+  await page.locator('.bottom-navigation').getByRole('link', { name: 'Lists' }).click();
+  await expect(page.getByRole('heading', { name: 'Your lists' })).toBeVisible();
+
+  const areas = page.getByRole('region', { name: 'Areas' });
+  await areas.getByRole('button', { name: 'Add' }).click();
+  await page.getByRole('textbox', { name: 'Name' }).fill('Errands');
+  await page
+    .getByRole('dialog', { name: 'New area' })
+    .getByRole('button', { name: 'Save' })
+    .click();
+  await expect(areas.getByRole('button', { name: 'Errands', exact: true })).toBeVisible();
+
+  const lists = page.getByRole('region', { name: 'Lists' });
+  await lists.getByRole('button', { name: 'Add' }).click();
+  await page.getByRole('textbox', { name: 'Name' }).fill('Weekend');
+  await page
+    .getByRole('dialog', { name: 'New list' })
+    .getByRole('button', { name: 'Save' })
+    .click();
+  await expect(lists.getByRole('button', { name: 'Weekend', exact: true })).toBeVisible();
+
+  await page.locator('.quick-add-fab').click();
+  const quickAdd = page.getByRole('dialog', { name: 'Quick Add' });
+  await quickAdd.getByRole('textbox', { name: 'Task title' }).fill('Book haircut');
+  await quickAdd
+    .getByRole('combobox', { name: 'Destination list' })
+    .selectOption({ label: 'Errands — Weekend' });
+  await quickAdd.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Book haircut', exact: true })).toBeVisible();
+
+  await page.reload();
+  await areas.getByRole('button', { name: 'Errands', exact: true }).click();
+  await lists.getByRole('button', { name: 'Weekend', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Book haircut', exact: true })).toBeVisible();
+  await page.evaluate(async () => navigator.serviceWorker.ready);
+
+  await context.setOffline(true);
+  try {
+    await page.getByRole('checkbox', { name: 'Complete Book haircut' }).check();
+    await expect(
+      page.getByRole('checkbox', { name: 'Mark incomplete Book haircut' }),
+    ).toBeChecked();
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await areas.getByRole('button', { name: 'Errands', exact: true }).click();
+    await lists.getByRole('button', { name: 'Weekend', exact: true }).click();
+    await expect(
+      page.getByRole('checkbox', { name: 'Mark incomplete Book haircut' }),
+    ).toBeChecked();
+    await page.getByRole('button', { name: 'Clear Completed' }).click();
+    await expect(page.getByRole('button', { name: 'Book haircut', exact: true })).toBeHidden();
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await areas.getByRole('button', { name: 'Errands', exact: true }).click();
+    await lists.getByRole('button', { name: 'Weekend', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Book haircut', exact: true })).toBeHidden();
+  } finally {
+    await context.setOffline(false);
+  }
 });
 
 test('reloads the application shell while offline', async ({ page, context }) => {

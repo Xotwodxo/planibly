@@ -1,8 +1,9 @@
 # Planibly
 
 Planibly is a zero-cost, private, offline-first personal planning PWA. This repository currently
-implements **Phase 0 only**: the installable application foundation. Task management and all other
-product features remain intentionally out of scope until Phase 1 or later.
+implements the installable Phase 0 foundation and **Phase 1A** organisation: areas, standard lists,
+Inbox, and basic tasks. Later task-management and planning features remain intentionally out of
+scope.
 
 ## What Phase 0 contains
 
@@ -15,6 +16,15 @@ product features remain intentionally out of scope until Phase 1 or later.
 - Local-only diagnostic logging and a recoverable React error boundary
 - Vitest, React Testing Library, fake IndexedDB, and Playwright test coverage
 - ESLint and Prettier configuration
+
+## What Phase 1A contains
+
+- Editable, colour-coded, reorderable areas with five idempotent starters
+- Standard lists inside areas and a protected Inbox available immediately
+- Basic local tasks with Quick Add, editing, completion, and persistent Clear Completed handling
+- Explicit handling for non-empty area and list deletion
+- Dexie schema version 3 with repository-based persistence, soft deletion, and completion clearing
+- Accessible move controls and responsive mobile/desktop organisation views
 
 There is no backend, account, analytics, external AI, paid service, or native iOS integration.
 
@@ -104,8 +114,9 @@ force-push to roll back.
 - HTTP caches contain only the versioned application shell and static assets, never personal data.
 - Diagnostics are capped, stored locally, and never transmitted.
 - Add future Dexie schemas sequentially in `src/data/database.ts`; never rewrite a released schema.
-- The service-worker update prompt requires explicit user action. Future forms must integrate an
-  unsaved-change guard before accepting an update.
+- The service-worker update prompt requires explicit user action and will not reload while a
+  Phase 1A form has unsaved changes.
 
-See [Docs/phase-0-architecture.md](Docs/phase-0-architecture.md) for further decisions and the
-manual device checks required before Phase 1.
+See [Docs/phase-0-architecture.md](Docs/phase-0-architecture.md) and
+[Docs/phase-1a-architecture.md](Docs/phase-1a-architecture.md) for the current architecture and
+manual device checks.

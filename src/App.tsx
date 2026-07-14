@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { FoundationPage } from './pages/FoundationPage';
 import { HomePage } from './pages/HomePage';
+import { ListsPage } from './pages/ListsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 
 export function App() {
@@ -30,16 +31,7 @@ export function App() {
             />
           }
         />
-        <Route
-          path="lists"
-          element={
-            <FoundationPage
-              eyebrow="Lists"
-              title="Keep life gently organised"
-              description="Areas, lists, and task management begin in Phase 1 and are not part of this foundation."
-            />
-          }
-        />
+        <Route path="lists" element={<ListsPage />} />
         <Route
           path="insights"
           element={

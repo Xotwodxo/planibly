@@ -2,7 +2,7 @@ import { Surface } from '../components/ui/Surface';
 
 const foundations = [
   ['Offline shell', 'Cached after the first successful load'],
-  ['Local storage', 'Versioned IndexedDB ready for future data'],
+  ['Local storage', 'Areas, lists, and tasks stay in this browser'],
   ['Private by default', 'No account, analytics, backend, or external AI'],
 ] as const;
 
@@ -13,8 +13,8 @@ export function HomePage() {
         <span className="eyebrow">A calmer place to plan</span>
         <h1 id="welcome-title">Make room for what matters.</h1>
         <p>
-          Planibly is being built as a private, offline-first personal planner. The application
-          foundation is ready; planning features will arrive one careful phase at a time.
+          Planibly is a private, offline-first personal planner. Areas, lists, Inbox, and basic task
+          capture are ready without an account or connection.
         </p>
       </section>
 

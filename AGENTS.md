@@ -3,8 +3,10 @@
 ## Scope
 
 Read `Docs/planibly-pwa-product-specification.md` before product work and follow its phased roadmap.
-The current boundary is Phase 0. Do not add areas, lists, tasks, appointments, routines, reminders,
-shopping, insights, or planning logic until the user explicitly begins the appropriate phase.
+The current boundary is Phase 1A: areas, standard lists, Inbox, and basic tasks only. Do not add
+steps, tags, projects, search, smart lists beyond Inbox, Recently Deleted, undo, appointments,
+routines, reminders, shopping-specific behavior, insights, or planning logic until the user
+explicitly begins the appropriate phase.
 
 Planibly must remain free, private, local-first, and useful without a backend. Do not add accounts,
 analytics, advertising, paid services, external AI, native iOS claims, or silent network reporting.
