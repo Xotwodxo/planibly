@@ -1,6 +1,6 @@
 import { useState, type CSSProperties, type FormEvent } from 'react';
 
-import { ENTITY_COLORS } from '../../data/plannerTypes';
+import { ENTITY_COLORS, type ListMode } from '../../data/plannerTypes';
 import { Button } from '../../components/ui/Button';
 import { Dialog } from '../../components/ui/Dialog';
 import { useUnsavedChanges } from './unsavedChanges';
@@ -9,23 +9,26 @@ type EntityEditorDialogProps = {
   entityLabel: 'area' | 'list';
   initialName?: string;
   initialColor?: string;
+  initialMode?: ListMode;
   onClose: () => void;
-  onSave: (name: string, color: string) => Promise<void>;
+  onSave: (name: string, color: string, mode: ListMode) => Promise<void>;
 };
 
 export function EntityEditorDialog({
   entityLabel,
   initialName = '',
   initialColor = ENTITY_COLORS[0].value,
+  initialMode = 'standard',
   onClose,
   onSave,
 }: EntityEditorDialogProps) {
   const [name, setName] = useState(initialName);
   const [color, setColor] = useState(initialColor);
+  const [mode, setMode] = useState<ListMode>(initialMode);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const title = initialName ? `Edit ${entityLabel}` : `New ${entityLabel}`;
-  useUnsavedChanges(name !== initialName || color !== initialColor);
+  useUnsavedChanges(name !== initialName || color !== initialColor || mode !== initialMode);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -35,7 +38,7 @@ export function EntityEditorDialog({
     }
     setIsSaving(true);
     try {
-      await onSave(name.trim(), color);
+      await onSave(name.trim(), color, mode);
       onClose();
     } catch (caughtError) {
       setError(
@@ -80,6 +83,31 @@ export function EntityEditorDialog({
             ))}
           </div>
         </fieldset>
+        {entityLabel === 'list' && !initialName ? (
+          <fieldset className="choice-fieldset">
+            <legend>List type</legend>
+            <label>
+              <input
+                type="radio"
+                name="list-mode"
+                value="standard"
+                checked={mode === 'standard'}
+                onChange={() => setMode('standard')}
+              />
+              Standard List
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="list-mode"
+                value="project"
+                checked={mode === 'project'}
+                onChange={() => setMode('project')}
+              />
+              Project
+            </label>
+          </fieldset>
+        ) : null}
         {error ? (
           <p className="form-error" role="alert">
             {error}

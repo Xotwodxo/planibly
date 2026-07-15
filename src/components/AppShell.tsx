@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 
-import { OPEN_QUICK_ADD_EVENT } from '../features/planner/plannerEvents';
+import { plannerRepository } from '../data/plannerRepository';
+import type { DeletionReceipt } from '../data/plannerTypes';
+import { OPEN_QUICK_ADD_EVENT, SHOW_UNDO_EVENT } from '../features/planner/plannerEvents';
 import { QuickAddDialog } from '../features/planner/QuickAddDialog';
+import { SearchDialog } from '../features/planner/SearchDialog';
 import { AppNavigation } from './AppNavigation';
 import { Icon } from './Icon';
 import { IconButton } from './ui/IconButton';
@@ -20,12 +23,41 @@ export function AppShell() {
   const { pathname } = useLocation();
   const title = titles[pathname] ?? 'Planibly';
   const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [undoReceipt, setUndoReceipt] = useState<DeletionReceipt | null>(null);
+  const [undoError, setUndoError] = useState<string | null>(null);
 
   useEffect(() => {
     const open = () => setQuickAddOpen(true);
     window.addEventListener(OPEN_QUICK_ADD_EVENT, open);
     return () => window.removeEventListener(OPEN_QUICK_ADD_EVENT, open);
   }, []);
+
+  useEffect(() => {
+    const show = (event: Event) => {
+      setUndoReceipt((event as CustomEvent<DeletionReceipt>).detail);
+      setUndoError(null);
+    };
+    window.addEventListener(SHOW_UNDO_EVENT, show);
+    return () => window.removeEventListener(SHOW_UNDO_EVENT, show);
+  }, []);
+
+  useEffect(() => {
+    if (!undoReceipt) return;
+    const timeout = window.setTimeout(() => setUndoReceipt(null), 10_000);
+    return () => window.clearTimeout(timeout);
+  }, [undoReceipt]);
+
+  async function undoDeletion() {
+    if (!undoReceipt) return;
+    try {
+      await plannerRepository.restoreDeletionGroup(undoReceipt.groupId, undoReceipt);
+      setUndoReceipt(null);
+      setUndoError(null);
+    } catch (caughtError) {
+      setUndoError(caughtError instanceof Error ? caughtError.message : 'Undo could not complete.');
+    }
+  }
 
   return (
     <div className="app-shell">
@@ -49,11 +81,16 @@ export function AppShell() {
             <span className="mobile-brand">Planibly</span>
             <strong className="current-section">{title}</strong>
           </div>
-          {pathname === '/' ? (
-            <IconButton label="Open settings" to="/settings">
-              <Icon name="settings" />
+          <div className="top-bar__actions">
+            <IconButton label="Search" onClick={() => setSearchOpen(true)}>
+              <Icon name="search" />
             </IconButton>
-          ) : null}
+            {pathname === '/' ? (
+              <IconButton label="Open settings" to="/settings">
+                <Icon name="settings" />
+              </IconButton>
+            ) : null}
+          </div>
         </header>
 
         <main id="main-content" className="main-content" tabIndex={-1}>
@@ -70,6 +107,19 @@ export function AppShell() {
         </nav>
       </div>
       {quickAddOpen ? <QuickAddDialog onClose={() => setQuickAddOpen(false)} /> : null}
+      {searchOpen ? <SearchDialog onClose={() => setSearchOpen(false)} /> : null}
+      {undoReceipt ? (
+        <div className="undo-toast" role="status" aria-live="polite">
+          <span>
+            {undoReceipt.label}{' '}
+            {undoReceipt.operation === 'archive' ? 'archived.' : 'moved to Recently Deleted.'}
+          </span>
+          <button type="button" onClick={() => void undoDeletion()}>
+            Undo
+          </button>
+          {undoError ? <span className="form-error">{undoError}</span> : null}
+        </div>
+      ) : null}
     </div>
   );
 }

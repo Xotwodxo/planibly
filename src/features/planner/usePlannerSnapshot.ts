@@ -11,12 +11,18 @@ import type { PlannerSnapshot } from '../../data/plannerTypes';
 const EMPTY_SNAPSHOT: PlannerSnapshot = {
   areas: [],
   lists: [],
+  archivedProjects: [],
   tasks: [],
   taskSteps: [],
   tags: [],
   taskTags: [],
   taskRelationships: [],
   blockedByTaskId: {},
+  projectProgressByListId: {},
+  deletedAreas: [],
+  deletedLists: [],
+  deletedTasks: [],
+  deletedSteps: [],
 };
 
 export function usePlannerSnapshot(repository: PlannerRepository = plannerRepository) {

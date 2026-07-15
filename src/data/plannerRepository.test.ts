@@ -3,6 +3,7 @@ import {
   NonEmptyEntityError,
   PlannerRepository,
   RelationshipValidationError,
+  RestoreParentRequiredError,
   TagInUseError,
   TaskBlockedError,
 } from './plannerRepository';
@@ -239,8 +240,234 @@ describe('PlannerRepository', () => {
     await expect(database.taskRelationships.get(relationship.id)).resolves.toHaveProperty(
       'deletedAt',
     );
-    expect(await database.taskTags.where('taskId').equals(predecessor.id).count()).toBe(0);
+    const deletedAssignment = await database.taskTags
+      .where('taskId')
+      .equals(predecessor.id)
+      .first();
+    expect(deletedAssignment?.deletedAt).toBeDefined();
     expect((await database.tags.get(tag.id))?.deletedAt).toBeUndefined();
+
+    database.close();
+    await database.delete();
+  });
+
+  it('manages project mode, derives progress and next action, and archives reversibly', async () => {
+    const { database, repository } = createHarness();
+    await initializeDatabase(database);
+    const area = (await repository.getSnapshot()).areas[0]!;
+    const project = await repository.createList(area.id, 'Kitchen refresh', '#8C65B5', 'project');
+    await repository.updateProjectDetails(project.id, 'Make the room easier to use', '2026-08-01');
+    const measure = await repository.createTask('Measure the room', project.id);
+    const order = await repository.createTask('Order materials', project.id);
+    await repository.addRelationship(measure.id, order.id);
+
+    let snapshot = await repository.getSnapshot();
+    expect(snapshot.projectProgressByListId[project.id]).toMatchObject({
+      completedCount: 0,
+      totalCount: 2,
+      nextActionId: measure.id,
+      allRemainingBlocked: false,
+    });
+    await repository.setTaskCompleted(measure.id, true);
+    snapshot = await repository.getSnapshot();
+    expect(snapshot.projectProgressByListId[project.id]).toMatchObject({
+      completedCount: 1,
+      totalCount: 2,
+      nextActionId: order.id,
+    });
+    const externalBlocker = await repository.createTask('Wait for room access');
+    await repository.addRelationship(externalBlocker.id, order.id);
+    expect((await repository.getSnapshot()).projectProgressByListId[project.id]).toMatchObject({
+      completedCount: 1,
+      totalCount: 2,
+      nextActionId: undefined,
+      allRemainingBlocked: true,
+    });
+    await repository.setTaskCompleted(externalBlocker.id, true);
+    expect((await repository.getSnapshot()).projectProgressByListId[project.id]).toMatchObject({
+      nextActionId: order.id,
+      allRemainingBlocked: false,
+    });
+
+    const archiveReceipt = await repository.archiveProject(project.id);
+    snapshot = await repository.getSnapshot();
+    expect(snapshot.lists.map((list) => list.id)).not.toContain(project.id);
+    expect(snapshot.archivedProjects.map((list) => list.id)).toContain(project.id);
+    expect((await repository.getSmartTasks('active')).map((task) => task.id)).not.toContain(
+      order.id,
+    );
+    await expect(
+      repository.search('kitchen', {
+        types: ['list'],
+        includeArchived: false,
+        includeCompleted: true,
+      }),
+    ).resolves.toHaveLength(0);
+    await expect(
+      repository.search('kitchen', {
+        types: ['list'],
+        includeArchived: true,
+        includeCompleted: true,
+      }),
+    ).resolves.toEqual([expect.objectContaining({ id: project.id, archived: true })]);
+    await repository.restoreDeletionGroup(archiveReceipt.groupId, archiveReceipt);
+    expect((await repository.getSnapshot()).lists.map((list) => list.id)).toContain(project.id);
+
+    await expect(repository.convertListMode(project.id, 'standard')).rejects.toThrow(
+      'Confirm removal',
+    );
+    await repository.convertListMode(project.id, 'standard', true);
+    await expect(database.lists.get(project.id)).resolves.toMatchObject({ mode: 'standard' });
+    expect((await database.lists.get(project.id))?.projectOutcome).toBeUndefined();
+    await repository.convertListMode(project.id, 'project');
+    expect(
+      (await repository.getSnapshot()).tasks.filter((task) => task.listId === project.id),
+    ).toHaveLength(2);
+    await repository.archiveProject(project.id);
+    await repository.restoreArchivedProject(project.id);
+    expect((await repository.getSnapshot()).lists.map((list) => list.id)).toContain(project.id);
+
+    database.close();
+    await database.delete();
+  });
+
+  it('returns meaningful smart lists and local search results with explicit filters', async () => {
+    const { database, repository } = createHarness();
+    await initializeDatabase(database);
+    const area = (await repository.getSnapshot()).areas[0]!;
+    await repository.updateArea(area.id, 'Launch area', area.color);
+    const list = await repository.createList(area.id, 'Launch notes', '#5B67C8');
+    const activeTask = await repository.createTask('Draft launch note', list.id);
+    const completedTask = await repository.createTask('Approve launch note', list.id);
+    const blockedTask = await repository.createTask('Publish launch note', list.id);
+    const inboxTask = await repository.createTask('Capture launch thought');
+    const step = await repository.createStep(activeTask.id, 'Check launch spelling');
+    const tag = await repository.createTag('Launch context', '#3D9F98');
+    await repository.assignTag(activeTask.id, tag.id);
+    await repository.setTaskCompleted(completedTask.id, true);
+    await repository.addRelationship(activeTask.id, blockedTask.id);
+
+    await expect(repository.getSmartTasks('inbox')).resolves.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: inboxTask.id })]),
+    );
+    expect((await repository.getSmartTasks('active')).map((task) => task.id)).toEqual(
+      expect.arrayContaining([activeTask.id, blockedTask.id, inboxTask.id]),
+    );
+    expect((await repository.getSmartTasks('blocked')).map((task) => task.id)).toEqual([
+      blockedTask.id,
+    ]);
+    expect((await repository.getSmartTasks('completed')).map((task) => task.id)).toEqual([
+      completedTask.id,
+    ]);
+
+    const defaultResults = await repository.search('  LaUnCh  ', {
+      types: ['area', 'list', 'task', 'step', 'tag'],
+      includeArchived: false,
+      includeCompleted: false,
+    });
+    expect(defaultResults.map((result) => result.id)).toEqual(
+      expect.arrayContaining([area.id, list.id, activeTask.id, blockedTask.id, step.id, tag.id]),
+    );
+    expect(defaultResults.map((result) => result.id)).not.toContain(completedTask.id);
+    const completedResults = await repository.search('approve', {
+      types: ['task'],
+      includeArchived: false,
+      includeCompleted: true,
+    });
+    expect(completedResults).toEqual([
+      expect.objectContaining({ id: completedTask.id, completed: true }),
+    ]);
+
+    database.close();
+    await database.delete();
+  });
+
+  it('restores deletion groups, dependent details, and moved lists through session undo', async () => {
+    const { database, repository } = createHarness();
+    await initializeDatabase(database);
+    const [source, destination] = (await repository.getSnapshot()).areas;
+    const movedList = await repository.createList(source!.id, 'Move me', '#5B67C8');
+    const moveReceipt = await repository.deleteArea(source!.id, {
+      type: 'move',
+      destinationAreaId: destination!.id,
+    });
+    expect((await database.lists.get(movedList.id))?.areaId).toBe(destination!.id);
+    await repository.restoreDeletionGroup(moveReceipt.groupId, moveReceipt);
+    expect((await database.lists.get(movedList.id))?.areaId).toBe(source!.id);
+    expect((await database.areas.get(source!.id))?.deletedAt).toBeUndefined();
+
+    const task = await repository.createTask('Recover whole task', movedList.id);
+    const successor = await repository.createTask('Still linked', movedList.id);
+    const step = await repository.createStep(task.id, 'Recover this step');
+    const tag = await repository.createTag('Recovery', '#3D9F98');
+    await repository.assignTag(task.id, tag.id);
+    const relationship = await repository.addRelationship(task.id, successor.id);
+    const taskReceipt = await repository.deleteTask(task.id);
+    await repository.restoreDeletionGroup(taskReceipt.groupId, taskReceipt);
+
+    const snapshot = await repository.getSnapshot();
+    expect(snapshot.tasks.map((candidate) => candidate.id)).toContain(task.id);
+    expect(snapshot.taskSteps.map((candidate) => candidate.id)).toContain(step.id);
+    expect(snapshot.taskTags.some((assignment) => assignment.taskId === task.id)).toBe(true);
+    expect(snapshot.taskRelationships.map((candidate) => candidate.id)).toContain(relationship.id);
+    expect(snapshot.blockedByTaskId[successor.id]).toEqual([task.id]);
+
+    const stepReceipt = await repository.deleteStep(step.id);
+    await repository.restoreDeletionGroup(stepReceipt.groupId, stepReceipt);
+    expect((await repository.getSnapshot()).taskSteps.map((candidate) => candidate.id)).toContain(
+      step.id,
+    );
+    const listReceipt = await repository.deleteList(movedList.id, true);
+    await repository.restoreDeletionGroup(listReceipt.groupId, listReceipt);
+    const restoredListSnapshot = await repository.getSnapshot();
+    expect(restoredListSnapshot.lists.map((candidate) => candidate.id)).toContain(movedList.id);
+    expect(restoredListSnapshot.tasks.map((candidate) => candidate.id)).toEqual(
+      expect.arrayContaining([task.id, successor.id]),
+    );
+
+    database.close();
+    await database.delete();
+  });
+
+  it('requires parent restoration and permanently cleans cascaded records', async () => {
+    const { database, repository } = createHarness();
+    await initializeDatabase(database);
+    const area = (await repository.getSnapshot()).areas[0]!;
+    const list = await repository.createList(area.id, 'Recoverable', '#5B67C8');
+    const task = await repository.createTask('Restore with parents', list.id);
+    const step = await repository.createStep(task.id, 'Nested detail');
+    const successor = await repository.createTask('Keep active successor');
+    const tag = await repository.createTag('Cleanup assignment', '#3D9F98');
+    const assignment = await repository.assignTag(task.id, tag.id);
+    const relationship = await repository.addRelationship(task.id, successor.id);
+    await repository.deleteList(list.id, true);
+
+    await expect(repository.restoreDeletedEntity('task', task.id)).rejects.toBeInstanceOf(
+      RestoreParentRequiredError,
+    );
+    await repository.restoreDeletedEntity('task', task.id, true);
+    expect((await database.lists.get(list.id))?.deletedAt).toBeUndefined();
+    expect((await database.tasks.get(task.id))?.deletedAt).toBeUndefined();
+    expect((await database.taskSteps.get(step.id))?.deletedAt).toBeUndefined();
+
+    await repository.deleteList(list.id, true);
+    await repository.permanentlyDelete('list', list.id);
+    await expect(database.lists.get(list.id)).resolves.toBeUndefined();
+    await expect(database.tasks.get(task.id)).resolves.toBeUndefined();
+    await expect(database.taskSteps.get(step.id)).resolves.toBeUndefined();
+    await expect(database.taskTags.get(assignment.id)).resolves.toBeUndefined();
+    await expect(database.taskRelationships.get(relationship.id)).resolves.toBeUndefined();
+    await expect(database.tasks.get(successor.id)).resolves.toMatchObject({
+      title: 'Keep active successor',
+    });
+    expect((await repository.getSnapshot()).blockedByTaskId[successor.id]).toBeUndefined();
+
+    const first = await repository.createTask('Delete one');
+    const second = await repository.createTask('Delete two');
+    await repository.deleteTask(first.id);
+    await repository.deleteTask(second.id);
+    await expect(repository.emptyRecentlyDeleted()).resolves.toBeGreaterThanOrEqual(2);
+    expect((await repository.getSnapshot()).deletedTasks).toHaveLength(0);
 
     database.close();
     await database.delete();

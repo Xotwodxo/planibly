@@ -105,7 +105,7 @@ describe('ListsPage', () => {
       }),
     );
     expect(screen.getByRole('dialog', { name: 'Delete Important?' })).toHaveTextContent(
-      'This will also remove 1 task',
+      'This will move the list and 1 task to Recently Deleted.',
     );
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
 
@@ -172,5 +172,95 @@ describe('ListsPage', () => {
     ).toBeVisible();
     expect(screen.getByText(`Blocked by ${first.title}`)).toBeVisible();
     expect(screen.getByRole('checkbox', { name: `Complete ${second.title}` })).toBeDisabled();
+  });
+
+  it('shows project progress and supports reversible project archiving', async () => {
+    const area = (await plannerRepository.getSnapshot()).areas[0]!;
+    const project = await plannerRepository.createList(
+      area.id,
+      'Kitchen refresh',
+      '#8C65B5',
+      'project',
+    );
+    await plannerRepository.updateProjectDetails(
+      project.id,
+      'Make the room easier to use',
+      '2026-08-01',
+    );
+    const first = await plannerRepository.createTask('Measure room', project.id);
+    const second = await plannerRepository.createTask('Order materials', project.id);
+    await plannerRepository.addRelationship(first.id, second.id);
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/lists']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole('heading', { name: 'Your lists' });
+    await user.click(screen.getByRole('button', { name: 'Personal' }));
+    await user.click(screen.getByRole('button', { name: /^Kitchen refresh/ }));
+    expect(screen.getByText('Make the room easier to use')).toBeVisible();
+    expect(screen.getByText('0 completed of 2')).toBeVisible();
+    expect(screen.getByText('Next available action:').parentElement).toHaveTextContent(
+      'Measure room',
+    );
+
+    await user.click(screen.getByRole('checkbox', { name: 'Complete Measure room' }));
+    await waitFor(() => expect(screen.getByText('1 completed of 2')).toBeVisible());
+    expect(screen.getByText('Next available action:').parentElement).toHaveTextContent(
+      'Order materials',
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Archive project' }));
+    expect(await screen.findByText('Kitchen refresh archived.')).toBeVisible();
+    const activeAreaLists = screen
+      .getByRole('region', { name: 'Lists' })
+      .querySelector<HTMLElement>('.list-group-label + .entity-list')!;
+    await waitFor(() =>
+      expect(
+        within(activeAreaLists).queryByRole('button', { name: /^Kitchen refresh/ }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText('Archived projects (1)')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Undo' }));
+    await user.click(screen.getByRole('button', { name: 'Personal' }));
+    expect(await screen.findByRole('button', { name: /^Kitchen refresh/ })).toBeVisible();
+  });
+
+  it('searches local records and restores a deleted task from Recently Deleted', async () => {
+    const task = await plannerRepository.createTask('Book garden room');
+    await plannerRepository.createStep(task.id, 'Compare garden quotes');
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/lists']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole('button', { name: 'Book garden room' });
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+    const searchDialog = screen.getByRole('dialog', { name: 'Search Planibly' });
+    await user.type(within(searchDialog).getByRole('searchbox', { name: 'Search' }), 'garden');
+    expect(await within(searchDialog).findByText('Book garden room')).toBeVisible();
+    expect(await within(searchDialog).findByText('Compare garden quotes')).toBeVisible();
+    await user.click(within(searchDialog).getByText('Book garden room').closest('button')!);
+
+    const editor = await screen.findByRole('dialog', { name: 'Edit task' });
+    await user.click(within(editor).getByRole('button', { name: 'Delete task' }));
+    await user.click(within(editor).getByRole('button', { name: 'Confirm delete task' }));
+    expect(await screen.findByText('Book garden room moved to Recently Deleted.')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Recently Deleted' }));
+    await screen.findByRole('heading', { name: 'Recently Deleted' });
+    const deletedTask = await screen.findByText('Book garden room', {
+      selector: '.recovery-list strong',
+    });
+    expect(deletedTask).toBeVisible();
+    await user.click(within(deletedTask.closest('li')!).getByRole('button', { name: 'Restore' }));
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Restore' })).not.toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole('button', { name: 'Inbox' }));
+    expect(await screen.findByRole('button', { name: 'Book garden room' })).toBeVisible();
   });
 });

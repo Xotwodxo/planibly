@@ -220,6 +220,105 @@ test('persists mobile steps, tags, and blocking through reload and offline use',
   }
 });
 
+test('persists the mobile Phase 1C project, search, undo, and recovery flow offline', async ({
+  page,
+  context,
+}, testInfo) => {
+  test.skip(!testInfo.project.name.includes('mobile'), 'Mobile-only Phase 1C flow');
+  await page.goto('/planibly/lists');
+  const areas = page.getByRole('region', { name: 'Areas' });
+  const lists = page.getByRole('region', { name: 'Lists' });
+  const activeProject = lists.locator('.list-group-label + .entity-list .entity-row', {
+    hasText: 'Garden project',
+  });
+  await areas.getByRole('button', { name: 'Personal', exact: true }).click();
+  await lists.getByRole('button', { name: 'Add' }).click();
+  const listDialog = page.getByRole('dialog', { name: 'New list' });
+  await listDialog.getByRole('textbox', { name: 'Name' }).fill('Garden project');
+  await listDialog.getByRole('radio', { name: 'Project' }).check();
+  await listDialog.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByRole('heading', { name: 'Garden project' })).toBeVisible();
+
+  await lists.getByRole('button', { name: 'Project details' }).click();
+  const projectDialog = page.getByRole('dialog', { name: 'Project details' });
+  await projectDialog
+    .getByRole('textbox', { name: 'Outcome or description' })
+    .fill('A calm place to sit outside');
+  await projectDialog.getByLabel('Optional target date').fill('2026-09-15');
+  await projectDialog.getByRole('button', { name: 'Save project' }).click();
+
+  async function quickAddToProject(title: string) {
+    await page.locator('.quick-add-fab').click();
+    const quickAdd = page.getByRole('dialog', { name: 'Quick Add' });
+    await quickAdd.getByRole('textbox', { name: 'Task title' }).fill(title);
+    await quickAdd
+      .getByRole('combobox', { name: 'Destination list' })
+      .selectOption({ label: 'Personal — Garden project' });
+    await quickAdd.getByRole('button', { name: 'Save', exact: true }).click();
+  }
+
+  await quickAddToProject('Sketch garden layout');
+  await quickAddToProject('Choose garden bench');
+  await expect(page.getByText('0 completed of 2')).toBeVisible();
+  await expect(
+    page.locator('.project-summary p', { hasText: 'Next available action:' }),
+  ).toContainText('Sketch garden layout');
+  await page.getByRole('checkbox', { name: 'Complete Sketch garden layout' }).check();
+  await expect(page.getByText('1 completed of 2')).toBeVisible();
+  await expect(
+    page.locator('.project-summary p', { hasText: 'Next available action:' }),
+  ).toContainText('Choose garden bench');
+
+  await page.getByRole('button', { name: 'Search' }).click();
+  const search = page.getByRole('dialog', { name: 'Search Planibly' });
+  await search.getByRole('searchbox', { name: 'Search' }).fill('bench');
+  await search.getByRole('button', { name: /Choose garden bench/ }).click();
+  const editor = page.getByRole('dialog', { name: 'Edit task' });
+  await editor.getByRole('button', { name: 'Delete task' }).click();
+  await editor.getByRole('button', { name: 'Confirm delete task' }).click();
+  await expect(page.getByText('Choose garden bench moved to Recently Deleted.')).toBeVisible();
+  await page.getByRole('button', { name: 'Undo' }).click();
+
+  await activeProject.click();
+  await expect(
+    page.getByRole('button', { name: 'Choose garden bench', exact: true }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Edit Choose garden bench', exact: true }).click();
+  const restoredEditor = page.getByRole('dialog', { name: 'Edit task' });
+  await restoredEditor.getByRole('button', { name: 'Delete task' }).click();
+  await restoredEditor.getByRole('button', { name: 'Confirm delete task' }).click();
+  await lists.getByRole('button', { name: 'Recently Deleted', exact: true }).click();
+  const deletedTask = page.locator('.recovery-list li', { hasText: 'Choose garden bench' });
+  await expect(deletedTask).toBeVisible();
+  await deletedTask.getByRole('button', { name: 'Restore' }).click();
+  await activeProject.click();
+  await expect(
+    page.getByRole('button', { name: 'Choose garden bench', exact: true }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Archive project' }).click();
+  await expect(page.getByText('Garden project archived.')).toBeVisible();
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(activeProject).toBeVisible();
+
+  await page.reload();
+  await areas.getByRole('button', { name: 'Personal', exact: true }).click();
+  await activeProject.click();
+  await expect(page.getByText('A calm place to sit outside')).toBeVisible();
+  await page.evaluate(async () => navigator.serviceWorker.ready);
+  await context.setOffline(true);
+  try {
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await areas.getByRole('button', { name: 'Personal', exact: true }).click();
+    await activeProject.click();
+    await expect(page.getByText('A calm place to sit outside')).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Choose garden bench', exact: true }),
+    ).toBeVisible();
+  } finally {
+    await context.setOffline(false);
+  }
+});
+
 test('keeps the mobile task editor contained and scrollable at 200% text size', async ({
   page,
 }, testInfo) => {

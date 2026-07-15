@@ -110,6 +110,12 @@ select {
   line-height: 1.2;
 }
 
+.top-bar > .top-bar__actions {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .mobile-brand {
   color: var(--color-primary);
   font-size: var(--font-size-xs);
@@ -211,6 +217,7 @@ select {
   color: var(--color-text);
   flex: 0 0 2.75rem;
   overflow: hidden;
+  cursor: pointer;
 }
 
 .page {
@@ -475,9 +482,15 @@ select {
 
 .field input,
 .field select,
+.field textarea,
 .choice-fieldset select {
   width: 100%;
   padding: var(--space-2) var(--space-3);
+}
+
+.field textarea {
+  min-height: 6rem;
+  resize: vertical;
 }
 
 .color-fieldset,
@@ -657,6 +670,55 @@ select {
   color: var(--color-primary-strong);
 }
 
+.entity-kind {
+  margin-left: auto;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+}
+
+.smart-list {
+  display: grid;
+  gap: var(--space-1);
+  margin-bottom: var(--space-4);
+}
+
+.smart-list button {
+  min-height: 2.75rem;
+  padding: 0 var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-weight: 700;
+  text-align: left;
+}
+
+.smart-list button.is-selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-strong);
+}
+
+.list-group-label {
+  margin-top: var(--space-4);
+}
+
+.archived-projects {
+  margin-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-3);
+}
+
+.archived-projects summary {
+  min-height: 2.75rem;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
 .entity-dot {
   width: 0.75rem;
   height: 0.75rem;
@@ -779,6 +841,13 @@ select {
 
 .task-row__content {
   min-width: 0;
+}
+
+.task-location {
+  display: block;
+  padding-bottom: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
 }
 
 .task-row__content .task-title {
@@ -1033,6 +1102,167 @@ select {
   margin-top: var(--space-3);
 }
 
+.project-summary {
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 25%, var(--color-border));
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-4);
+  background: color-mix(in srgb, var(--color-primary-soft) 50%, var(--color-surface));
+}
+
+.project-summary p {
+  margin: 0 0 var(--space-2);
+}
+
+.project-summary__actions,
+.dialog__actions--wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.confirm-check {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: flex-start;
+  gap: var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.confirm-check input,
+.search-filters input {
+  width: 1.25rem;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  min-height: 1.25rem;
+}
+
+.search-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  padding: 0;
+  border: 0;
+  margin: var(--space-4) 0;
+}
+
+.search-filters legend {
+  width: 100%;
+  margin-bottom: var(--space-2);
+  font-weight: 700;
+}
+
+.search-filters label {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.search-filters > div {
+  display: flex;
+  width: 100%;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+
+.search-results ul,
+.recovery-list {
+  display: grid;
+  gap: var(--space-2);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.search-results button {
+  display: grid;
+  width: 100%;
+  min-height: 3.5rem;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.search-results button > span,
+.recovery-list li > div:first-child > span,
+.recovery-list time {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.search-result__type {
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.recovery-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.recovery-list li > div {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.recovery-list li > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.destructive-text {
+  color: var(--color-destructive);
+}
+
+.undo-toast {
+  position: fixed;
+  z-index: 60;
+  right: var(--space-4);
+  bottom: calc(var(--navigation-height) + env(safe-area-inset-bottom) + var(--space-4));
+  left: var(--space-4);
+  display: flex;
+  max-width: 32rem;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-text);
+  box-shadow: var(--elevation-2);
+  color: var(--color-background);
+}
+
+.undo-toast button {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-weight: 800;
+  text-decoration: underline;
+}
+
 .update-prompt {
   position: fixed;
   z-index: 50;
@@ -1177,6 +1407,12 @@ select {
     bottom: var(--space-6);
   }
 
+  .undo-toast {
+    right: var(--space-6);
+    bottom: var(--space-6);
+    left: auto;
+  }
+
   .planner-layout {
     grid-template-columns: minmax(10rem, 0.75fr) minmax(10rem, 0.75fr) minmax(22rem, 2fr);
     align-items: start;
@@ -1251,6 +1487,15 @@ select {
   .inline-add .button,
   .relationship-add .button {
     width: 100%;
+  }
+
+  .recovery-list li {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .recovery-list li > div:last-child {
+    justify-content: flex-start;
   }
 }
 

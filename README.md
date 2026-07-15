@@ -1,9 +1,10 @@
 # Planibly
 
 Planibly is a zero-cost, private, offline-first personal planning PWA. This repository currently
-implements the installable Phase 0 foundation, Phase 1A organisation, and **Phase 1B** optional task
-details: one-level steps, reusable tags, and lightweight before/after relationships with blocking.
-Later task-management and planning features remain intentionally out of scope.
+implements the installable Phase 0 foundation and the Phase 1 task-management system through
+**Phase 1C**. This includes organisation, optional task details, projects, local search, useful smart
+lists, recovery, and session undo. Planning and later product phases remain intentionally out of
+scope.
 
 ## What Phase 0 contains
 
@@ -33,6 +34,16 @@ Later task-management and planning features remain intentionally out of scope.
 - Plain-language Before and After task relationships with self-reference and cycle prevention
 - Derived blocked-task state that responds immediately to predecessor completion changes
 - Dexie schema version 4 with deterministic Phase 1A migration and relationship cleanup on task deletion
+
+## What Phase 1C contains
+
+- Standard lists that can be created or safely converted into lightweight projects
+- Project outcome, optional target-date metadata, derived progress, and a next available action
+- Local substring search across areas, lists/projects, tasks, steps, and tags with explicit filters
+- Inbox, All Active Tasks, Blocked, Completed, and Recently Deleted smart lists
+- Hierarchy-aware recovery, explicit permanent deletion, and a strongly confirmed Empty action
+- Ten-second same-session undo for task, step, list/project, and area deletion and project archiving
+- Dexie schema version 5 with deterministic Phase 1B migration and recoverable deletion groups
 
 There is no backend, account, analytics, external AI, paid service, or native iOS integration.
 
@@ -126,6 +137,7 @@ force-push to roll back.
   task form has unsaved changes.
 
 See [Docs/phase-0-architecture.md](Docs/phase-0-architecture.md),
-[Docs/phase-1a-architecture.md](Docs/phase-1a-architecture.md), and
-[Docs/phase-1b-architecture.md](Docs/phase-1b-architecture.md) for the current architecture,
-Phase 1B invariants, and manual device checks.
+[Docs/phase-1a-architecture.md](Docs/phase-1a-architecture.md),
+[Docs/phase-1b-architecture.md](Docs/phase-1b-architecture.md), and
+[Docs/phase-1c-architecture.md](Docs/phase-1c-architecture.md) for the current architecture, data
+invariants, and manual device checks.

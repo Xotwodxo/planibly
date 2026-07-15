@@ -148,7 +148,59 @@ describe('PlaniblyDatabase', () => {
     expect(await upgraded.tags.count()).toBe(0);
     expect(await upgraded.taskTags.count()).toBe(0);
     expect(await upgraded.taskRelationships.count()).toBe(0);
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '4' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '5' });
+
+    upgraded.close();
+    await upgraded.delete();
+  });
+
+  it('upgrades Phase 1B data to Phase 1C deterministically without losing records', async () => {
+    const name = `planibly-phase-1c-upgrade-${crypto.randomUUID()}`;
+    const legacy = new Dexie(name);
+    legacy.version(4).stores({
+      metadata: '&key, updatedAt',
+      diagnostics: '&id, level, event, createdAt',
+      areas: '&id, order, createdAt, modifiedAt, deletedAt',
+      lists: '&id, areaId, [areaId+order], systemType, createdAt, modifiedAt, deletedAt',
+      tasks:
+        '&id, listId, [listId+order], status, completedClearedAt, createdAt, modifiedAt, deletedAt',
+      taskSteps: '&id, taskId, [taskId+order], createdAt, modifiedAt, deletedAt',
+      tags: '&id, normalizedName, createdAt, modifiedAt, deletedAt',
+      taskTags: '&id, taskId, tagId, &[taskId+tagId], createdAt',
+      taskRelationships:
+        '&id, predecessorTaskId, successorTaskId, [predecessorTaskId+successorTaskId], createdAt, modifiedAt, deletedAt',
+    });
+    await legacy.open();
+    const timestamp = '2026-03-01T00:00:00.000Z';
+    await legacy.table('lists').put({
+      id: 'phase-1b-list',
+      areaId: 'phase-1b-area',
+      name: 'Existing list',
+      color: '#5B67C8',
+      order: 0,
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    await legacy.table('taskTags').put({
+      id: 'phase-1b-assignment',
+      taskId: 'phase-1b-task',
+      tagId: 'phase-1b-tag',
+      createdAt: timestamp,
+    });
+    legacy.close();
+
+    const upgraded = new PlaniblyDatabase(name);
+    await initializeDatabase(upgraded);
+
+    await expect(upgraded.lists.get('phase-1b-list')).resolves.toMatchObject({
+      name: 'Existing list',
+      mode: 'standard',
+    });
+    await expect(upgraded.taskTags.get('phase-1b-assignment')).resolves.toMatchObject({
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '5' });
 
     upgraded.close();
     await upgraded.delete();

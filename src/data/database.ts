@@ -14,7 +14,7 @@ import {
 } from './plannerTypes';
 
 export const DATABASE_NAME = 'planibly';
-export const DATABASE_SCHEMA_VERSION = 4;
+export const DATABASE_SCHEMA_VERSION = 5;
 
 export type MetadataRecord = {
   key: string;
@@ -106,6 +106,41 @@ export const schemaVersions: readonly SchemaVersion[] = [
       await metadata.put({
         key: 'schemaVersion',
         value: '4',
+        updatedAt: current?.updatedAt ?? new Date(0).toISOString(),
+      });
+    },
+  },
+  {
+    version: 5,
+    stores: {
+      metadata: '&key, updatedAt',
+      diagnostics: '&id, level, event, createdAt',
+      areas: '&id, order, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      lists:
+        '&id, areaId, [areaId+order], systemType, mode, archivedAt, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      tasks:
+        '&id, listId, [listId+order], status, completedClearedAt, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      taskSteps: '&id, taskId, [taskId+order], createdAt, modifiedAt, deletedAt, deletionGroupId',
+      tags: '&id, normalizedName, createdAt, modifiedAt, deletedAt',
+      taskTags:
+        '&id, taskId, tagId, &[taskId+tagId], createdAt, modifiedAt, deletedAt, deletionGroupId',
+      taskRelationships:
+        '&id, predecessorTaskId, successorTaskId, [predecessorTaskId+successorTaskId], createdAt, modifiedAt, deletedAt, deletionGroupId',
+    },
+    migrate: async (transaction) => {
+      const metadata = transaction.table<MetadataRecord>('metadata');
+      const lists = transaction.table<PlanListRecord>('lists');
+      const taskTags = transaction.table<TaskTagRecord>('taskTags');
+      const current = await metadata.get('schemaVersion');
+      await lists.toCollection().modify((list) => {
+        if (list.systemType !== 'inbox' && list.mode === undefined) list.mode = 'standard';
+      });
+      await taskTags.toCollection().modify((assignment) => {
+        assignment.modifiedAt = assignment.modifiedAt ?? assignment.createdAt;
+      });
+      await metadata.put({
+        key: 'schemaVersion',
+        value: '5',
         updatedAt: current?.updatedAt ?? new Date(0).toISOString(),
       });
     },

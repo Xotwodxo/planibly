@@ -27,7 +27,10 @@ export type AreaRecord = {
   createdAt: string;
   modifiedAt: string;
   deletedAt?: string;
+  deletionGroupId?: string;
 };
+
+export type ListMode = 'standard' | 'project';
 
 export type PlanListRecord = {
   id: string;
@@ -36,9 +39,14 @@ export type PlanListRecord = {
   color: string;
   order: number;
   systemType?: 'inbox';
+  mode?: ListMode;
+  projectOutcome?: string;
+  projectTargetDate?: string;
+  archivedAt?: string;
   createdAt: string;
   modifiedAt: string;
   deletedAt?: string;
+  deletionGroupId?: string;
 };
 
 export type TaskStatus = 'inbox' | 'available' | 'completed';
@@ -53,6 +61,7 @@ export type TaskRecord = {
   modifiedAt: string;
   completedClearedAt?: string;
   deletedAt?: string;
+  deletionGroupId?: string;
 };
 
 export type TaskStepRecord = {
@@ -64,6 +73,7 @@ export type TaskStepRecord = {
   createdAt: string;
   modifiedAt: string;
   deletedAt?: string;
+  deletionGroupId?: string;
 };
 
 export type TagRecord = {
@@ -81,6 +91,9 @@ export type TaskTagRecord = {
   taskId: string;
   tagId: string;
   createdAt: string;
+  modifiedAt: string;
+  deletedAt?: string;
+  deletionGroupId?: string;
 };
 
 export type TaskRelationshipRecord = {
@@ -90,15 +103,62 @@ export type TaskRelationshipRecord = {
   createdAt: string;
   modifiedAt: string;
   deletedAt?: string;
+  deletionGroupId?: string;
 };
+
+export type DeletionEntityKind = 'area' | 'list' | 'task' | 'step';
+
+export type DeletionReceipt = {
+  groupId: string;
+  kind: DeletionEntityKind;
+  entityId: string;
+  label: string;
+  deletedAt: string;
+  operation?: 'delete' | 'archive';
+  movedListIds?: string[];
+};
+
+export type ProjectProgress = {
+  listId: string;
+  completedCount: number;
+  totalCount: number;
+  nextActionId?: string;
+  allRemainingBlocked: boolean;
+};
+
+export type SearchResultType = 'area' | 'list' | 'task' | 'step' | 'tag';
+
+export type SearchFilters = {
+  types: SearchResultType[];
+  includeCompleted: boolean;
+  includeArchived: boolean;
+};
+
+export type SearchResult = {
+  id: string;
+  type: SearchResultType;
+  title: string;
+  location: string;
+  url: string;
+  completed?: boolean;
+  archived?: boolean;
+};
+
+export type SmartListKey = 'inbox' | 'active' | 'blocked' | 'completed' | 'recentlyDeleted';
 
 export type PlannerSnapshot = {
   areas: AreaRecord[];
   lists: PlanListRecord[];
+  archivedProjects: PlanListRecord[];
   tasks: TaskRecord[];
   taskSteps: TaskStepRecord[];
   tags: TagRecord[];
   taskTags: TaskTagRecord[];
   taskRelationships: TaskRelationshipRecord[];
   blockedByTaskId: Record<string, string[]>;
+  projectProgressByListId: Record<string, ProjectProgress>;
+  deletedAreas: AreaRecord[];
+  deletedLists: PlanListRecord[];
+  deletedTasks: TaskRecord[];
+  deletedSteps: TaskStepRecord[];
 };

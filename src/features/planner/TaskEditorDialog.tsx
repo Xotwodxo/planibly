@@ -14,6 +14,7 @@ import {
   type TaskRecord,
   type TaskStepRecord,
 } from '../../data/plannerTypes';
+import { showDeletionUndo } from './plannerEvents';
 import { useUnsavedChanges } from './unsavedChanges';
 
 type TaskEditorDialogProps = {
@@ -26,6 +27,7 @@ export function TaskEditorDialog({ task, snapshot, onClose }: TaskEditorDialogPr
   const [title, setTitle] = useState(task.title);
   const [listId, setListId] = useState(task.listId);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   useUnsavedChanges(title !== task.title || listId !== task.listId);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -39,6 +41,22 @@ export function TaskEditorDialog({ task, snapshot, onClose }: TaskEditorDialogPr
       onClose();
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : 'The task could not be saved.');
+    }
+  }
+
+  async function deleteTask() {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    try {
+      const receipt = await plannerRepository.deleteTask(task.id);
+      showDeletionUndo(receipt);
+      onClose();
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error ? caughtError.message : 'The task could not be deleted.',
+      );
     }
   }
 
@@ -92,6 +110,14 @@ export function TaskEditorDialog({ task, snapshot, onClose }: TaskEditorDialogPr
       <RelationshipEditor task={task} snapshot={snapshot} />
 
       <div className="dialog__actions">
+        <Button
+          type="button"
+          className={confirmDelete ? 'button--destructive' : ''}
+          variant={confirmDelete ? 'primary' : 'quiet'}
+          onClick={() => void deleteTask()}
+        >
+          {confirmDelete ? 'Confirm delete task' : 'Delete task'}
+        </Button>
         <Button type="button" variant="quiet" onClick={onClose}>
           Close
         </Button>
@@ -202,7 +228,7 @@ function StepEditor({ task, steps }: { task: TaskRecord; steps: TaskStepRecord[]
                 <button
                   type="button"
                   className="destructive-text"
-                  onClick={() => void plannerRepository.deleteStep(step.id)}
+                  onClick={() => void plannerRepository.deleteStep(step.id).then(showDeletionUndo)}
                 >
                   Delete
                 </button>
