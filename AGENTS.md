@@ -3,11 +3,10 @@
 ## Scope
 
 Read `Docs/planibly-pwa-product-specification.md` before product work and follow its phased roadmap.
-The current boundary is Phase 1C: Phase 1B features plus project list mode, project progress and next
-action, local search, meaningful task smart lists, Recently Deleted recovery, and session undo for
-destructive organisation actions. Do not add saved filters, complex queries, appointments, routines,
-reminders, shopping-specific behavior, dashboard cards, insights, or planning logic until the user
-explicitly begins the appropriate phase.
+The current boundary is Phase 2A: Phase 1C features plus optional task planning fields, date-based
+smart lists, and the basic Plan screen. Do not add calendar views, timelines, drag scheduling,
+capacity planning, recurring behavior, reminders, shopping-specific behavior, dashboard cards, or
+insights until the user explicitly begins the appropriate phase.
 
 Planibly must remain free, private, local-first, and useful without a backend. Do not add accounts,
 analytics, advertising, paid services, external AI, native iOS claims, or silent network reporting.

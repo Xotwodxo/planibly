@@ -7,11 +7,13 @@ import {
   RelationshipValidationError,
   TagInUseError,
 } from '../../data/plannerRepository';
+import { addCalendarDays, localDateFromDate, validatePlanning } from '../../data/planning';
 import {
   ENTITY_COLORS,
   type PlannerSnapshot,
   type TagRecord,
   type TaskRecord,
+  type TaskTimeWindow,
   type TaskStepRecord,
 } from '../../data/plannerTypes';
 import { showDeletionUndo } from './plannerEvents';
@@ -26,9 +28,28 @@ type TaskEditorDialogProps = {
 export function TaskEditorDialog({ task, snapshot, onClose }: TaskEditorDialogProps) {
   const [title, setTitle] = useState(task.title);
   const [listId, setListId] = useState(task.listId);
+  const [plannedDate, setPlannedDate] = useState(task.plannedDate ?? '');
+  const [deadlineDate, setDeadlineDate] = useState(task.deadlineDate ?? '');
+  const [flexibleStartDate, setFlexibleStartDate] = useState(task.flexibleStartDate ?? '');
+  const [flexibleEndDate, setFlexibleEndDate] = useState(task.flexibleEndDate ?? '');
+  const [timeChoice, setTimeChoice] = useState<'any' | 'exact' | TaskTimeWindow>(
+    task.exactStartTime ? 'exact' : (task.timeWindow ?? 'any'),
+  );
+  const [exactStartTime, setExactStartTime] = useState(task.exactStartTime ?? '');
+  const [duration, setDuration] = useState(
+    task.estimatedDurationMinutes ? String(task.estimatedDurationMinutes) : '',
+  );
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  useUnsavedChanges(title !== task.title || listId !== task.listId);
+  const planningChanged =
+    plannedDate !== (task.plannedDate ?? '') ||
+    deadlineDate !== (task.deadlineDate ?? '') ||
+    flexibleStartDate !== (task.flexibleStartDate ?? '') ||
+    flexibleEndDate !== (task.flexibleEndDate ?? '') ||
+    timeChoice !== (task.exactStartTime ? 'exact' : (task.timeWindow ?? 'any')) ||
+    exactStartTime !== (task.exactStartTime ?? '') ||
+    duration !== (task.estimatedDurationMinutes ? String(task.estimatedDurationMinutes) : '');
+  useUnsavedChanges(title !== task.title || listId !== task.listId || planningChanged);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -37,7 +58,19 @@ export function TaskEditorDialog({ task, snapshot, onClose }: TaskEditorDialogPr
       return;
     }
     try {
+      const planning = validatePlanning({
+        plannedDate: plannedDate || undefined,
+        deadlineDate: deadlineDate || undefined,
+        flexibleStartDate: flexibleStartDate || undefined,
+        flexibleEndDate: flexibleEndDate || undefined,
+        timeWindow:
+          plannedDate && timeChoice !== 'any' && timeChoice !== 'exact' ? timeChoice : undefined,
+        exactStartTime:
+          plannedDate && timeChoice === 'exact' ? exactStartTime || undefined : undefined,
+        estimatedDurationMinutes: duration ? Number(duration) : undefined,
+      });
       await plannerRepository.updateTask(task.id, title, listId);
+      await plannerRepository.updateTaskPlanning(task.id, planning);
       onClose();
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : 'The task could not be saved.');
@@ -82,6 +115,172 @@ export function TaskEditorDialog({ task, snapshot, onClose }: TaskEditorDialogPr
             maxLength={200}
           />
         </label>
+        <fieldset className="planning-fields">
+          <legend>Planning</legend>
+          <p>
+            A planned day is when you intend to act. A deadline is the genuine last day it can be
+            done.
+          </p>
+          <div className="planning-shortcuts" aria-label="Quick planned day">
+            <Button
+              type="button"
+              variant="quiet"
+              onClick={() => {
+                setPlannedDate(localDateFromDate(new Date()));
+                setFlexibleStartDate('');
+                setFlexibleEndDate('');
+              }}
+            >
+              Today
+            </Button>
+            <Button
+              type="button"
+              variant="quiet"
+              onClick={() => {
+                setPlannedDate(addCalendarDays(localDateFromDate(new Date()), 1));
+                setFlexibleStartDate('');
+                setFlexibleEndDate('');
+              }}
+            >
+              Tomorrow
+            </Button>
+            <Button
+              type="button"
+              variant="quiet"
+              onClick={() => document.getElementById(`planned-date-${task.id}`)?.focus()}
+            >
+              Choose Date
+            </Button>
+          </div>
+          <div className="planning-grid">
+            <label className="field">
+              <span>Planned day</span>
+              <input
+                id={`planned-date-${task.id}`}
+                type="date"
+                value={plannedDate}
+                onChange={(event) => {
+                  setPlannedDate(event.target.value);
+                  if (event.target.value) {
+                    setFlexibleStartDate('');
+                    setFlexibleEndDate('');
+                  } else {
+                    setTimeChoice('any');
+                    setExactStartTime('');
+                  }
+                }}
+              />
+            </label>
+            <label className="field">
+              <span>Genuine deadline</span>
+              <input
+                type="date"
+                value={deadlineDate}
+                onChange={(event) => setDeadlineDate(event.target.value)}
+              />
+            </label>
+          </div>
+          <fieldset className="planning-range">
+            <legend>Flexible date range</legend>
+            <p>Use this when either day would suit; it is not a deadline.</p>
+            <div className="planning-grid">
+              <label className="field">
+                <span>From</span>
+                <input
+                  type="date"
+                  value={flexibleStartDate}
+                  onChange={(event) => {
+                    setFlexibleStartDate(event.target.value);
+                    if (event.target.value) {
+                      setPlannedDate('');
+                      setTimeChoice('any');
+                      setExactStartTime('');
+                    }
+                  }}
+                />
+              </label>
+              <label className="field">
+                <span>To</span>
+                <input
+                  type="date"
+                  value={flexibleEndDate}
+                  onChange={(event) => {
+                    setFlexibleEndDate(event.target.value);
+                    if (event.target.value) {
+                      setPlannedDate('');
+                      setTimeChoice('any');
+                      setExactStartTime('');
+                    }
+                  }}
+                />
+              </label>
+            </div>
+          </fieldset>
+          <div className="planning-grid">
+            <label className="field">
+              <span>Time</span>
+              <select
+                value={timeChoice}
+                disabled={!plannedDate}
+                onChange={(event) => {
+                  const value = event.target.value as 'any' | 'exact' | TaskTimeWindow;
+                  setTimeChoice(value);
+                  if (value !== 'exact') setExactStartTime('');
+                }}
+              >
+                <option value="any">Any Time</option>
+                <option value="morning">Morning</option>
+                <option value="afternoon">Afternoon</option>
+                <option value="evening">Evening</option>
+                <option value="exact">Exact start time</option>
+              </select>
+            </label>
+            {timeChoice === 'exact' && plannedDate ? (
+              <label className="field">
+                <span>Exact start time</span>
+                <input
+                  type="time"
+                  required
+                  value={exactStartTime}
+                  onChange={(event) => setExactStartTime(event.target.value)}
+                />
+              </label>
+            ) : null}
+            <label className="field">
+              <span>Estimated duration (minutes)</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                min="1"
+                step="1"
+                value={duration}
+                onChange={(event) => setDuration(event.target.value)}
+              />
+            </label>
+          </div>
+          <div className="duration-presets" aria-label="Duration presets">
+            {[15, 30, 60, 90].map((minutes) => (
+              <button key={minutes} type="button" onClick={() => setDuration(String(minutes))}>
+                {minutes} min
+              </button>
+            ))}
+          </div>
+          <Button
+            type="button"
+            variant="quiet"
+            onClick={() => {
+              setPlannedDate('');
+              setDeadlineDate('');
+              setFlexibleStartDate('');
+              setFlexibleEndDate('');
+              setTimeChoice('any');
+              setExactStartTime('');
+              setDuration('');
+            }}
+          >
+            Clear planning
+          </Button>
+        </fieldset>
         <label className="field">
           <span>Destination list</span>
           <select value={listId} onChange={(event) => setListId(event.target.value)}>

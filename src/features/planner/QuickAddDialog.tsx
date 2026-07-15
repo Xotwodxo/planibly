@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Button } from '../../components/ui/Button';
 import { Dialog } from '../../components/ui/Dialog';
 import { plannerRepository } from '../../data/plannerRepository';
+import { addCalendarDays, localDateFromDate } from '../../data/planning';
 import { INBOX_LIST_ID } from '../../data/plannerTypes';
 import { usePlannerSnapshot } from './usePlannerSnapshot';
 import { useUnsavedChanges } from './unsavedChanges';
@@ -15,10 +16,11 @@ export function QuickAddDialog({ onClose }: QuickAddDialogProps) {
   const { snapshot, isLoading } = usePlannerSnapshot();
   const [title, setTitle] = useState('');
   const [listId, setListId] = useState(INBOX_LIST_ID);
+  const [plannedDay, setPlannedDay] = useState<'none' | 'today' | 'tomorrow'>('none');
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  useUnsavedChanges(title.length > 0 || listId !== INBOX_LIST_ID);
+  useUnsavedChanges(title.length > 0 || listId !== INBOX_LIST_ID || plannedDay !== 'none');
 
   useEffect(() => {
     if (!snapshot.lists.some((list) => list.id === listId)) setListId(INBOX_LIST_ID);
@@ -32,7 +34,15 @@ export function QuickAddDialog({ onClose }: QuickAddDialogProps) {
     setIsSaving(true);
     setError(null);
     try {
-      await plannerRepository.createTask(title, listId);
+      const today = localDateFromDate(new Date());
+      await plannerRepository.createTask(title, listId, {
+        plannedDate:
+          plannedDay === 'today'
+            ? today
+            : plannedDay === 'tomorrow'
+              ? addCalendarDays(today, 1)
+              : undefined,
+      });
       if (keepOpen) {
         setTitle('');
         setMessage('Task saved. Add another when you are ready.');
@@ -70,6 +80,20 @@ export function QuickAddDialog({ onClose }: QuickAddDialogProps) {
             maxLength={200}
           />
         </label>
+        <fieldset className="quick-plan-choice">
+          <legend>Optional planned day</legend>
+          {(['none', 'today', 'tomorrow'] as const).map((value) => (
+            <label key={value}>
+              <input
+                type="radio"
+                name="quick-planned-day"
+                checked={plannedDay === value}
+                onChange={() => setPlannedDay(value)}
+              />
+              {value === 'none' ? 'Not planned' : value === 'today' ? 'Today' : 'Tomorrow'}
+            </label>
+          ))}
+        </fieldset>
         <label className="field">
           <span>Destination list</span>
           <select

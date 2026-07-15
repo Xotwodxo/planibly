@@ -14,7 +14,7 @@ import {
 } from './plannerTypes';
 
 export const DATABASE_NAME = 'planibly';
-export const DATABASE_SCHEMA_VERSION = 5;
+export const DATABASE_SCHEMA_VERSION = 6;
 
 export type MetadataRecord = {
   key: string;
@@ -141,6 +141,33 @@ export const schemaVersions: readonly SchemaVersion[] = [
       await metadata.put({
         key: 'schemaVersion',
         value: '5',
+        updatedAt: current?.updatedAt ?? new Date(0).toISOString(),
+      });
+    },
+  },
+  {
+    version: 6,
+    stores: {
+      metadata: '&key, updatedAt',
+      diagnostics: '&id, level, event, createdAt',
+      areas: '&id, order, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      lists:
+        '&id, areaId, [areaId+order], systemType, mode, archivedAt, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      tasks:
+        '&id, listId, [listId+order], status, plannedDate, deadlineDate, flexibleStartDate, flexibleEndDate, completedClearedAt, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      taskSteps: '&id, taskId, [taskId+order], createdAt, modifiedAt, deletedAt, deletionGroupId',
+      tags: '&id, normalizedName, createdAt, modifiedAt, deletedAt',
+      taskTags:
+        '&id, taskId, tagId, &[taskId+tagId], createdAt, modifiedAt, deletedAt, deletionGroupId',
+      taskRelationships:
+        '&id, predecessorTaskId, successorTaskId, [predecessorTaskId+successorTaskId], createdAt, modifiedAt, deletedAt, deletionGroupId',
+    },
+    migrate: async (transaction) => {
+      const metadata = transaction.table<MetadataRecord>('metadata');
+      const current = await metadata.get('schemaVersion');
+      await metadata.put({
+        key: 'schemaVersion',
+        value: '6',
         updatedAt: current?.updatedAt ?? new Date(0).toISOString(),
       });
     },

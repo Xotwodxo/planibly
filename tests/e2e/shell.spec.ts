@@ -359,6 +359,54 @@ test('keeps the mobile task editor contained and scrollable at 200% text size', 
   await expect(editor.getByRole('button', { name: 'Close', exact: true })).toBeVisible();
 });
 
+test('persists the mobile Phase 2A plan through reload and offline reopening', async ({
+  page,
+  context,
+}, testInfo) => {
+  test.skip(!testInfo.project.name.includes('mobile'), 'Mobile-only Phase 2A flow');
+  await page.goto('/planibly/plan');
+  await expect(page.getByRole('heading', { name: 'Shape time with intention' })).toBeVisible();
+
+  await page.locator('.quick-add-fab').click();
+  const quickAdd = page.getByRole('dialog', { name: 'Quick Add' });
+  await quickAdd.getByRole('textbox', { name: 'Task title' }).fill('Review tomorrow plan');
+  await quickAdd.getByRole('radio', { name: 'Today' }).check();
+  await quickAdd.getByRole('button', { name: 'Save', exact: true }).click();
+
+  const todaySection = page.getByRole('region', { name: 'Today' });
+  await expect(todaySection.getByRole('button', { name: 'Review tomorrow plan' })).toBeVisible();
+  await todaySection.getByRole('button', { name: 'Review tomorrow plan' }).click();
+  const editor = page.getByRole('dialog', { name: 'Edit task' });
+  const tomorrow = await page.evaluate(() => {
+    const value = new Date();
+    value.setDate(value.getDate() + 1);
+    return [
+      String(value.getFullYear()).padStart(4, '0'),
+      String(value.getMonth() + 1).padStart(2, '0'),
+      String(value.getDate()).padStart(2, '0'),
+    ].join('-');
+  });
+  await editor.getByLabel('Genuine deadline').fill(tomorrow);
+  await editor.getByLabel('Time').selectOption('morning');
+  await editor.getByRole('button', { name: '30 min' }).click();
+  await editor.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(todaySection.getByText(/Morning/)).toBeVisible();
+  await expect(todaySection.getByText(/30 min/)).toBeVisible();
+
+  await page.reload();
+  await expect(todaySection.getByRole('button', { name: 'Review tomorrow plan' })).toBeVisible();
+  await expect(todaySection.getByText(/Morning/)).toBeVisible();
+  await page.evaluate(async () => navigator.serviceWorker.ready);
+  await context.setOffline(true);
+  try {
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(todaySection.getByRole('button', { name: 'Review tomorrow plan' })).toBeVisible();
+    await expect(todaySection.getByText(/30 min/)).toBeVisible();
+  } finally {
+    await context.setOffline(false);
+  }
+});
+
 test('reloads the application shell while offline', async ({ page, context }) => {
   await page.goto(githubPagesBasePath);
   await expect(page.getByRole('heading', { name: 'Make room for what matters.' })).toBeVisible();

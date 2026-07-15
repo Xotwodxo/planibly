@@ -382,6 +382,78 @@ describe('PlannerRepository', () => {
     await database.delete();
   });
 
+  it('persists planning fields and derives date smart lists from an injected local today', async () => {
+    const { database, repository } = createHarness();
+    await initializeDatabase(database);
+    const today = await repository.createTask('Today');
+    const tomorrow = await repository.createTask('Tomorrow');
+    const dayThree = await repository.createTask('Day three');
+    const upcoming = await repository.createTask('Upcoming');
+    const flexible = await repository.createTask('Flexible');
+    const deadlineOnly = await repository.createTask('Deadline only');
+    const overdue = await repository.createTask('Overdue deadline');
+    const plannedPast = await repository.createTask('Past intention');
+    const unscheduled = await repository.createTask('Unscheduled');
+
+    await repository.updateTaskPlanning(today.id, {
+      plannedDate: '2026-03-28',
+      exactStartTime: '09:15',
+      deadlineDate: '2026-04-01',
+      estimatedDurationMinutes: 30,
+    });
+    await repository.updateTaskPlanning(tomorrow.id, {
+      plannedDate: '2026-03-29',
+      timeWindow: 'afternoon',
+    });
+    await repository.updateTaskPlanning(dayThree.id, { plannedDate: '2026-03-30' });
+    await repository.updateTaskPlanning(upcoming.id, { plannedDate: '2026-03-31' });
+    await repository.updateTaskPlanning(flexible.id, {
+      flexibleStartDate: '2026-03-29',
+      flexibleEndDate: '2026-03-30',
+    });
+    await repository.updateTaskPlanning(deadlineOnly.id, { deadlineDate: '2026-04-02' });
+    await repository.updateTaskPlanning(overdue.id, { deadlineDate: '2026-03-27' });
+    await repository.updateTaskPlanning(plannedPast.id, { plannedDate: '2026-03-27' });
+
+    const ids = async (key: Parameters<typeof repository.getSmartTasks>[0]) =>
+      (await repository.getSmartTasks(key, '2026-03-28')).map((task) => task.id);
+    expect(await ids('today')).toEqual([today.id]);
+    expect(await ids('nextThreeDays')).toEqual([today.id, tomorrow.id, dayThree.id]);
+    expect(await ids('upcoming')).toEqual([upcoming.id]);
+    expect(await ids('deadlines')).toEqual([overdue.id, today.id, deadlineOnly.id]);
+    expect(await ids('overdue')).toEqual([overdue.id]);
+    expect(await ids('overdue')).not.toContain(plannedPast.id);
+    expect(await ids('unscheduled')).toEqual(
+      expect.arrayContaining([deadlineOnly.id, overdue.id, unscheduled.id]),
+    );
+    expect(await ids('unscheduled')).not.toContain(flexible.id);
+
+    const overview = await repository.getPlanningOverview('2026-03-28');
+    expect(overview.today.map((task) => task.id)).toEqual([today.id]);
+    expect(overview.nextThreeDays.map((task) => task.id)).toEqual([tomorrow.id, dayThree.id]);
+    expect(overview.flexible.map((task) => task.id)).toEqual([flexible.id]);
+    expect(overview.upcomingDeadlines.map((task) => task.id)).toEqual([today.id, deadlineOnly.id]);
+
+    await repository.setTaskCompleted(today.id, true);
+    expect(await ids('today')).toEqual([]);
+    await expect(database.tasks.get(today.id)).resolves.toMatchObject({
+      plannedDate: '2026-03-28',
+      exactStartTime: '09:15',
+      estimatedDurationMinutes: 30,
+    });
+    await repository.setTaskCompleted(today.id, false);
+    expect(await ids('today')).toEqual([today.id]);
+    await repository.updateTaskPlanning(today.id, {});
+    await expect(database.tasks.get(today.id)).resolves.toMatchObject({ title: 'Today' });
+    expect((await database.tasks.get(today.id))?.plannedDate).toBeUndefined();
+
+    await expect(
+      repository.updateTaskPlanning(unscheduled.id, { exactStartTime: '10:00' }),
+    ).rejects.toThrow('planned day');
+    database.close();
+    await database.delete();
+  });
+
   it('restores deletion groups, dependent details, and moved lists through session undo', async () => {
     const { database, repository } = createHarness();
     await initializeDatabase(database);

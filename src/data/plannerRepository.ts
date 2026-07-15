@@ -1,5 +1,11 @@
 import { database, type PlaniblyDatabase } from './database';
 import {
+  localDateFromDate,
+  planningOverviewFromSnapshot,
+  smartTasksFromSnapshot,
+  validatePlanning,
+} from './planning';
+import {
   INBOX_LIST_ID,
   type AreaRecord,
   type DeletionEntityKind,
@@ -7,11 +13,13 @@ import {
   type ListMode,
   type PlanListRecord,
   type PlannerSnapshot,
+  type PlanningOverview,
   type SearchFilters,
   type SearchResult,
   type SmartListKey,
   type TagRecord,
   type TaskRecord,
+  type TaskPlanning,
   type TaskRelationshipRecord,
   type TaskStepRecord,
   type TaskTagRecord,
@@ -58,6 +66,7 @@ export class RestoreParentRequiredError extends Error {
 
 type RepositoryOptions = {
   now?: () => string;
+  today?: () => string;
   createId?: () => string;
   notify?: () => void;
 };
@@ -92,6 +101,7 @@ function normalizeTagName(value: string): string {
 
 export class PlannerRepository {
   private readonly now: () => string;
+  private readonly today: () => string;
   private readonly createId: () => string;
   private readonly notify: () => void;
 
@@ -100,6 +110,7 @@ export class PlannerRepository {
     options: RepositoryOptions = {},
   ) {
     this.now = options.now ?? (() => new Date().toISOString());
+    this.today = options.today ?? (() => localDateFromDate(new Date()));
     this.createId = options.createId ?? (() => crypto.randomUUID());
     this.notify = options.notify ?? notifyPlannerDataChanged;
   }
@@ -438,7 +449,11 @@ export class PlannerRepository {
     return { groupId, kind: 'list', entityId: id, label: list.name, deletedAt };
   }
 
-  public async createTask(title: string, listId = INBOX_LIST_ID): Promise<TaskRecord> {
+  public async createTask(
+    title: string,
+    listId = INBOX_LIST_ID,
+    planning: TaskPlanning = {},
+  ): Promise<TaskRecord> {
     const list = await this.requireActiveList(listId);
     const now = this.now();
     const siblings = (await this.db.tasks.where('listId').equals(listId).toArray()).filter(active);
@@ -450,6 +465,7 @@ export class PlannerRepository {
       order: siblings.length,
       createdAt: now,
       modifiedAt: now,
+      ...validatePlanning(planning),
     };
     await this.db.tasks.add(record);
     this.notify();
@@ -468,6 +484,23 @@ export class PlannerRepository {
           : list.systemType === 'inbox'
             ? 'inbox'
             : 'available',
+      modifiedAt: this.now(),
+    });
+    this.notify();
+  }
+
+  public async updateTaskPlanning(id: string, planning: TaskPlanning): Promise<void> {
+    await this.requireActiveTask(id);
+    const validated = validatePlanning(planning);
+    await this.db.tasks.update(id, {
+      plannedDate: undefined,
+      deadlineDate: undefined,
+      flexibleStartDate: undefined,
+      flexibleEndDate: undefined,
+      timeWindow: undefined,
+      exactStartTime: undefined,
+      estimatedDurationMinutes: undefined,
+      ...validated,
       modifiedAt: this.now(),
     });
     this.notify();
@@ -722,29 +755,12 @@ export class PlannerRepository {
     this.notify();
   }
 
-  public async getSmartTasks(key: SmartListKey): Promise<TaskRecord[]> {
-    const snapshot = await this.getSnapshot();
-    const visibleListIds = new Set(snapshot.lists.map((list) => list.id));
-    const visibleTasks = snapshot.tasks.filter((task) => visibleListIds.has(task.listId));
-    switch (key) {
-      case 'inbox':
-        return visibleTasks.filter(
-          (task) =>
-            task.listId === INBOX_LIST_ID &&
-            (task.status !== 'completed' || task.completedClearedAt === undefined),
-        );
-      case 'active':
-        return visibleTasks.filter((task) => task.status !== 'completed');
-      case 'blocked':
-        return visibleTasks.filter(
-          (task) =>
-            task.status !== 'completed' && (snapshot.blockedByTaskId[task.id]?.length ?? 0) > 0,
-        );
-      case 'completed':
-        return visibleTasks.filter((task) => task.status === 'completed');
-      case 'recentlyDeleted':
-        return [];
-    }
+  public async getSmartTasks(key: SmartListKey, today = this.today()): Promise<TaskRecord[]> {
+    return smartTasksFromSnapshot(await this.getSnapshot(), key, today);
+  }
+
+  public async getPlanningOverview(today = this.today()): Promise<PlanningOverview> {
+    return planningOverviewFromSnapshot(await this.getSnapshot(), today);
   }
 
   public async search(query: string, filters: SearchFilters): Promise<SearchResult[]> {

@@ -5,22 +5,14 @@ import { FoundationPage } from './pages/FoundationPage';
 import { HomePage } from './pages/HomePage';
 import { ListsPage } from './pages/ListsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { PlanPage } from './pages/PlanPage';
 
 export function App() {
   return (
     <Routes>
       <Route element={<AppShell />}>
         <Route index element={<HomePage />} />
-        <Route
-          path="plan"
-          element={
-            <FoundationPage
-              eyebrow="Plan"
-              title="Shape time with intention"
-              description="Agenda and planning tools arrive in a later phase. This route currently verifies the responsive application shell."
-            />
-          }
-        />
+        <Route path="plan" element={<PlanPage />} />
         <Route
           path="calendar"
           element={

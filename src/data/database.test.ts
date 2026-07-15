@@ -148,7 +148,7 @@ describe('PlaniblyDatabase', () => {
     expect(await upgraded.tags.count()).toBe(0);
     expect(await upgraded.taskTags.count()).toBe(0);
     expect(await upgraded.taskRelationships.count()).toBe(0);
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '5' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '6' });
 
     upgraded.close();
     await upgraded.delete();
@@ -200,7 +200,53 @@ describe('PlaniblyDatabase', () => {
       createdAt: timestamp,
       modifiedAt: timestamp,
     });
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '5' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '6' });
+
+    upgraded.close();
+    await upgraded.delete();
+  });
+
+  it('upgrades Phase 1C data to Phase 2A without inventing planning values', async () => {
+    const name = `planibly-phase-2a-upgrade-${crypto.randomUUID()}`;
+    const legacy = new Dexie(name);
+    legacy.version(5).stores({
+      metadata: '&key, updatedAt',
+      diagnostics: '&id, level, event, createdAt',
+      areas: '&id, order, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      lists:
+        '&id, areaId, [areaId+order], systemType, mode, archivedAt, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      tasks:
+        '&id, listId, [listId+order], status, completedClearedAt, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      taskSteps: '&id, taskId, [taskId+order], createdAt, modifiedAt, deletedAt, deletionGroupId',
+      tags: '&id, normalizedName, createdAt, modifiedAt, deletedAt',
+      taskTags:
+        '&id, taskId, tagId, &[taskId+tagId], createdAt, modifiedAt, deletedAt, deletionGroupId',
+      taskRelationships:
+        '&id, predecessorTaskId, successorTaskId, [predecessorTaskId+successorTaskId], createdAt, modifiedAt, deletedAt, deletionGroupId',
+    });
+    await legacy.open();
+    const timestamp = '2026-04-01T10:00:00.000Z';
+    await legacy.table('tasks').put({
+      id: 'phase-1c-task',
+      title: 'Preserve all earlier data',
+      listId: INBOX_LIST_ID,
+      status: 'inbox',
+      order: 0,
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    legacy.close();
+
+    const upgraded = new PlaniblyDatabase(name);
+    await initializeDatabase(upgraded);
+
+    const task = await upgraded.tasks.get('phase-1c-task');
+    expect(task).toMatchObject({ title: 'Preserve all earlier data', createdAt: timestamp });
+    expect(task?.plannedDate).toBeUndefined();
+    expect(task?.deadlineDate).toBeUndefined();
+    expect(task?.flexibleStartDate).toBeUndefined();
+    expect(task?.exactStartTime).toBeUndefined();
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '6' });
 
     upgraded.close();
     await upgraded.delete();

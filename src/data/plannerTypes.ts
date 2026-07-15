@@ -51,7 +51,19 @@ export type PlanListRecord = {
 
 export type TaskStatus = 'inbox' | 'available' | 'completed';
 
-export type TaskRecord = {
+export type TaskTimeWindow = 'morning' | 'afternoon' | 'evening';
+
+export type TaskPlanning = {
+  plannedDate?: string;
+  deadlineDate?: string;
+  flexibleStartDate?: string;
+  flexibleEndDate?: string;
+  timeWindow?: TaskTimeWindow;
+  exactStartTime?: string;
+  estimatedDurationMinutes?: number;
+};
+
+export type TaskRecord = TaskPlanning & {
   id: string;
   title: string;
   listId: string;
@@ -144,7 +156,26 @@ export type SearchResult = {
   archived?: boolean;
 };
 
-export type SmartListKey = 'inbox' | 'active' | 'blocked' | 'completed' | 'recentlyDeleted';
+export type SmartListKey =
+  | 'inbox'
+  | 'active'
+  | 'blocked'
+  | 'completed'
+  | 'today'
+  | 'nextThreeDays'
+  | 'upcoming'
+  | 'deadlines'
+  | 'overdue'
+  | 'unscheduled'
+  | 'recentlyDeleted';
+
+export type PlanningOverview = {
+  today: TaskRecord[];
+  nextThreeDays: TaskRecord[];
+  flexible: TaskRecord[];
+  upcomingDeadlines: TaskRecord[];
+  unscheduled: TaskRecord[];
+};
 
 export type PlannerSnapshot = {
   areas: AreaRecord[];

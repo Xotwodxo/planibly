@@ -5,6 +5,7 @@ import { Button } from '../components/ui/Button';
 import { Dialog } from '../components/ui/Dialog';
 import { Surface } from '../components/ui/Surface';
 import { plannerRepository, RestoreParentRequiredError } from '../data/plannerRepository';
+import { localDateFromDate, smartTasksFromSnapshot } from '../data/planning';
 import {
   INBOX_LIST_ID,
   type AreaRecord,
@@ -19,6 +20,7 @@ import {
 import { EntityEditorDialog } from '../features/planner/EntityEditorDialog';
 import { showDeletionUndo } from '../features/planner/plannerEvents';
 import { TaskEditorDialog } from '../features/planner/TaskEditorDialog';
+import { TaskPlanningSummary } from '../features/planner/TaskPlanningSummary';
 import { usePlannerSnapshot } from '../features/planner/usePlannerSnapshot';
 
 type EditorState =
@@ -35,6 +37,12 @@ const SMART_LISTS: { key: SmartListKey; label: string }[] = [
   { key: 'active', label: 'All Active Tasks' },
   { key: 'blocked', label: 'Blocked' },
   { key: 'completed', label: 'Completed' },
+  { key: 'today', label: 'Today' },
+  { key: 'nextThreeDays', label: 'Next Three Days' },
+  { key: 'upcoming', label: 'Upcoming' },
+  { key: 'deadlines', label: 'Deadlines' },
+  { key: 'overdue', label: 'Overdue' },
+  { key: 'unscheduled', label: 'Unscheduled' },
   { key: 'recentlyDeleted', label: 'Recently Deleted' },
 ];
 
@@ -442,16 +450,7 @@ function tasksForSelection(snapshot: PlannerSnapshot, selection: ViewSelection):
     );
     return snapshot.tasks.filter((task) => taskIds.has(task.id) && visibleListIds.has(task.listId));
   }
-  const tasks = snapshot.tasks.filter((task) => visibleListIds.has(task.listId));
-  if (selection.key === 'inbox') return tasks.filter((task) => task.listId === INBOX_LIST_ID);
-  if (selection.key === 'active') return tasks.filter((task) => task.status !== 'completed');
-  if (selection.key === 'blocked') {
-    return tasks.filter(
-      (task) => task.status !== 'completed' && (snapshot.blockedByTaskId[task.id]?.length ?? 0) > 0,
-    );
-  }
-  if (selection.key === 'completed') return tasks.filter((task) => task.status === 'completed');
-  return [];
+  return smartTasksFromSnapshot(snapshot, selection.key, localDateFromDate(new Date()));
 }
 
 function EntityRow({
@@ -589,6 +588,7 @@ function TaskSummary({ task, snapshot }: { task: TaskRecord; snapshot: PlannerSn
     .filter((title): title is string => title !== undefined);
   return (
     <div className="task-summary">
+      <TaskPlanningSummary task={task} today={localDateFromDate(new Date())} />
       {blockers.length > 0 ? (
         <span className="blocked-label">Blocked by {blockers.join(', ')}</span>
       ) : null}
