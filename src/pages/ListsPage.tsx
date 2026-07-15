@@ -75,8 +75,12 @@ export function ListsPage() {
     const listId = searchParams.get('list');
     const areaId = searchParams.get('area');
     const taskId = searchParams.get('task');
+    const smartKey = searchParams.get('smart') as SmartListKey | null;
     let handled = false;
-    if (archivedId && snapshot.archivedProjects.some((list) => list.id === archivedId)) {
+    if (smartKey && SMART_LISTS.some((smart) => smart.key === smartKey)) {
+      setSelection({ kind: 'smart', key: smartKey });
+      handled = true;
+    } else if (archivedId && snapshot.archivedProjects.some((list) => list.id === archivedId)) {
       setSelection({ kind: 'archived', id: archivedId });
       handled = true;
     } else if (tagId && snapshot.tags.some((tag) => tag.id === tagId)) {

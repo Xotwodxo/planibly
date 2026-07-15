@@ -3,6 +3,7 @@ import Dexie from 'dexie';
 import {
   DATABASE_SCHEMA_VERSION,
   initializeDatabase,
+  initializeDashboardStarterData,
   initializeStarterData,
   PlaniblyDatabase,
 } from './database';
@@ -20,6 +21,7 @@ describe('PlaniblyDatabase', () => {
     });
     expect(database.tables.map((table) => table.name).sort()).toEqual([
       'areas',
+      'dashboardLayouts',
       'diagnostics',
       'lists',
       'metadata',
@@ -148,7 +150,7 @@ describe('PlaniblyDatabase', () => {
     expect(await upgraded.tags.count()).toBe(0);
     expect(await upgraded.taskTags.count()).toBe(0);
     expect(await upgraded.taskRelationships.count()).toBe(0);
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '6' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '7' });
 
     upgraded.close();
     await upgraded.delete();
@@ -200,7 +202,7 @@ describe('PlaniblyDatabase', () => {
       createdAt: timestamp,
       modifiedAt: timestamp,
     });
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '6' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '7' });
 
     upgraded.close();
     await upgraded.delete();
@@ -246,10 +248,92 @@ describe('PlaniblyDatabase', () => {
     expect(task?.deadlineDate).toBeUndefined();
     expect(task?.flexibleStartDate).toBeUndefined();
     expect(task?.exactStartTime).toBeUndefined();
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '6' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '7' });
+
+    expect(task?.completedAt).toBeUndefined();
 
     upgraded.close();
     await upgraded.delete();
+  });
+
+  it('upgrades Phase 2A data with completion history and dashboard starters', async () => {
+    const name = `planibly-phase-2b-upgrade-${crypto.randomUUID()}`;
+    const legacy = new Dexie(name);
+    legacy.version(6).stores({
+      metadata: '&key, updatedAt',
+      diagnostics: '&id, level, event, createdAt',
+      areas: '&id, order, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      lists:
+        '&id, areaId, [areaId+order], systemType, mode, archivedAt, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      tasks:
+        '&id, listId, [listId+order], status, plannedDate, deadlineDate, flexibleStartDate, flexibleEndDate, completedClearedAt, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      taskSteps: '&id, taskId, [taskId+order], createdAt, modifiedAt, deletedAt, deletionGroupId',
+      tags: '&id, normalizedName, createdAt, modifiedAt, deletedAt',
+      taskTags:
+        '&id, taskId, tagId, &[taskId+tagId], createdAt, modifiedAt, deletedAt, deletionGroupId',
+      taskRelationships:
+        '&id, predecessorTaskId, successorTaskId, [predecessorTaskId+successorTaskId], createdAt, modifiedAt, deletedAt, deletionGroupId',
+    });
+    await legacy.open();
+    const completedAt = '2026-06-01T12:00:00.000Z';
+    await legacy.table('tasks').bulkAdd([
+      {
+        id: 'completed-phase-2a',
+        title: 'Completed before upgrade',
+        listId: INBOX_LIST_ID,
+        status: 'completed',
+        plannedDate: '2026-06-01',
+        order: 0,
+        createdAt: '2026-05-01T12:00:00.000Z',
+        modifiedAt: completedAt,
+      },
+      {
+        id: 'active-phase-2a',
+        title: 'Active before upgrade',
+        listId: INBOX_LIST_ID,
+        status: 'inbox',
+        order: 1,
+        createdAt: completedAt,
+        modifiedAt: completedAt,
+      },
+    ]);
+    legacy.close();
+
+    const upgraded = new PlaniblyDatabase(name);
+    await initializeDatabase(upgraded);
+
+    await expect(upgraded.tasks.get('completed-phase-2a')).resolves.toMatchObject({
+      plannedDate: '2026-06-01',
+      completedAt,
+    });
+    expect((await upgraded.tasks.get('active-phase-2a'))?.completedAt).toBeUndefined();
+    expect(await upgraded.dashboardLayouts.count()).toBe(3);
+    expect(
+      (await upgraded.dashboardLayouts.toArray()).filter((layout) => layout.isDefault),
+    ).toHaveLength(1);
+
+    upgraded.close();
+    await upgraded.delete();
+  });
+
+  it('does not recreate a customized or deleted dashboard starter implicitly', async () => {
+    const database = new PlaniblyDatabase(`planibly-dashboard-starters-${crypto.randomUUID()}`);
+    await initializeDatabase(database);
+    const overview = await database.dashboardLayouts.where('builtInKey').equals('overview').first();
+    expect(overview).toBeDefined();
+    await database.dashboardLayouts.update(overview!.id, { name: 'Changed directly' });
+    const focus = await database.dashboardLayouts.where('builtInKey').equals('focus').first();
+    await database.dashboardLayouts.delete(focus!.id);
+
+    await initializeDashboardStarterData(database);
+
+    expect(await database.dashboardLayouts.count()).toBe(2);
+    await expect(database.dashboardLayouts.get(overview!.id)).resolves.toMatchObject({
+      name: 'Changed directly',
+    });
+
+    database.close();
+    await database.delete();
   });
 
   it('creates starter data once without restoring later user changes', async () => {

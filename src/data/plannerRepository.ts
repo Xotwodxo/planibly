@@ -513,10 +513,12 @@ export class PlannerRepository {
       if (blockerIds.length > 0) throw new TaskBlockedError(blockerIds);
     }
     const list = await this.requireActiveList(task.listId);
+    const now = this.now();
     await this.db.tasks.update(id, {
       status: completed ? 'completed' : list.systemType === 'inbox' ? 'inbox' : 'available',
+      completedAt: completed ? now : undefined,
       completedClearedAt: undefined,
-      modifiedAt: this.now(),
+      modifiedAt: now,
     });
     this.notify();
   }

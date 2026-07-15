@@ -71,6 +71,7 @@ export type TaskRecord = TaskPlanning & {
   order: number;
   createdAt: string;
   modifiedAt: string;
+  completedAt?: string;
   completedClearedAt?: string;
   deletedAt?: string;
   deletionGroupId?: string;

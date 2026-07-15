@@ -72,6 +72,7 @@ export function QuickAddDialog({ onClose }: QuickAddDialogProps) {
           <span>Task title</span>
           <input
             autoFocus
+            required
             value={title}
             onChange={(event) => {
               setTitle(event.target.value);

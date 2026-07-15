@@ -1,6 +1,12 @@
 import Dexie, { type EntityTable, type Transaction } from 'dexie';
 
 import {
+  BUILT_IN_DASHBOARD_LAYOUT_IDS,
+  DASHBOARD_STARTER_DATA_VERSION,
+  STARTER_DASHBOARD_LAYOUTS,
+  type DashboardLayoutRecord,
+} from './dashboardTypes';
+import {
   INBOX_LIST_ID,
   STARTER_AREAS,
   STARTER_DATA_VERSION,
@@ -14,7 +20,7 @@ import {
 } from './plannerTypes';
 
 export const DATABASE_NAME = 'planibly';
-export const DATABASE_SCHEMA_VERSION = 6;
+export const DATABASE_SCHEMA_VERSION = 7;
 
 export type MetadataRecord = {
   key: string;
@@ -172,6 +178,40 @@ export const schemaVersions: readonly SchemaVersion[] = [
       });
     },
   },
+  {
+    version: 7,
+    stores: {
+      metadata: '&key, updatedAt',
+      diagnostics: '&id, level, event, createdAt',
+      areas: '&id, order, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      lists:
+        '&id, areaId, [areaId+order], systemType, mode, archivedAt, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      tasks:
+        '&id, listId, [listId+order], status, plannedDate, deadlineDate, flexibleStartDate, flexibleEndDate, completedAt, completedClearedAt, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      taskSteps: '&id, taskId, [taskId+order], createdAt, modifiedAt, deletedAt, deletionGroupId',
+      tags: '&id, normalizedName, createdAt, modifiedAt, deletedAt',
+      taskTags:
+        '&id, taskId, tagId, &[taskId+tagId], createdAt, modifiedAt, deletedAt, deletionGroupId',
+      taskRelationships:
+        '&id, predecessorTaskId, successorTaskId, [predecessorTaskId+successorTaskId], createdAt, modifiedAt, deletedAt, deletionGroupId',
+      dashboardLayouts: '&id, builtInKey, isDefault, createdAt, modifiedAt',
+    },
+    migrate: async (transaction) => {
+      const metadata = transaction.table<MetadataRecord>('metadata');
+      const tasks = transaction.table<TaskRecord>('tasks');
+      const current = await metadata.get('schemaVersion');
+      await tasks
+        .filter((task) => task.status === 'completed' && task.completedAt === undefined)
+        .modify((task) => {
+          task.completedAt = task.modifiedAt;
+        });
+      await metadata.put({
+        key: 'schemaVersion',
+        value: '7',
+        updatedAt: current?.updatedAt ?? new Date(0).toISOString(),
+      });
+    },
+  },
 ];
 
 export class PlaniblyDatabase extends Dexie {
@@ -184,6 +224,7 @@ export class PlaniblyDatabase extends Dexie {
   tags!: EntityTable<TagRecord, 'id'>;
   taskTags!: EntityTable<TaskTagRecord, 'id'>;
   taskRelationships!: EntityTable<TaskRelationshipRecord, 'id'>;
+  dashboardLayouts!: EntityTable<DashboardLayoutRecord, 'id'>;
 
   public constructor(name = DATABASE_NAME) {
     super(name);
@@ -231,6 +272,53 @@ export async function initializeStarterData(db: PlaniblyDatabase = database): Pr
   });
 }
 
+export async function initializeDashboardStarterData(
+  db: PlaniblyDatabase = database,
+): Promise<void> {
+  await db.transaction('rw', db.metadata, db.dashboardLayouts, async () => {
+    const marker = await db.metadata.get('dashboardStarterDataVersion');
+    if (Number(marker?.value ?? 0) >= DASHBOARD_STARTER_DATA_VERSION) return;
+
+    const now = new Date().toISOString();
+    const existing = await db.dashboardLayouts.toArray();
+    const existingIds = new Set(existing.map((layout) => layout.id));
+    const hasDefault = existing.some((layout) => layout.isDefault);
+    const starterRecords = STARTER_DASHBOARD_LAYOUTS.filter(
+      (layout) => !existingIds.has(layout.id),
+    ).map((layout) => ({
+      ...layout,
+      cards: layout.cards.map((cardConfig) => ({ ...cardConfig })),
+      isDefault: hasDefault ? false : layout.isDefault,
+      dismissedSuggestions: [],
+      createdAt: now,
+      modifiedAt: now,
+    }));
+    if (starterRecords.length > 0) await db.dashboardLayouts.bulkAdd(starterRecords);
+
+    const activeLayout = await db.metadata.get('dashboardActiveLayoutId');
+    if (!activeLayout) {
+      const overviewExists =
+        existingIds.has(BUILT_IN_DASHBOARD_LAYOUT_IDS.overview) ||
+        starterRecords.some((layout) => layout.id === BUILT_IN_DASHBOARD_LAYOUT_IDS.overview);
+      const fallbackId = overviewExists
+        ? BUILT_IN_DASHBOARD_LAYOUT_IDS.overview
+        : (existing[0]?.id ?? starterRecords[0]?.id);
+      if (fallbackId) {
+        await db.metadata.put({
+          key: 'dashboardActiveLayoutId',
+          value: fallbackId,
+          updatedAt: now,
+        });
+      }
+    }
+    await db.metadata.put({
+      key: 'dashboardStarterDataVersion',
+      value: String(DASHBOARD_STARTER_DATA_VERSION),
+      updatedAt: now,
+    });
+  });
+}
+
 export async function initializeDatabase(db: PlaniblyDatabase = database): Promise<void> {
   await db.open();
   const now = new Date().toISOString();
@@ -239,4 +327,5 @@ export async function initializeDatabase(db: PlaniblyDatabase = database): Promi
     { key: 'applicationName', value: 'Planibly', updatedAt: now },
   ]);
   await initializeStarterData(db);
+  await initializeDashboardStarterData(db);
 }

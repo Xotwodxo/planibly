@@ -76,6 +76,7 @@ describe('PlannerRepository', () => {
     await reopened.open();
     const persisted = await reopened.tasks.get(task.id);
     expect(persisted).toMatchObject({ title: 'Ready task', listId: list.id, status: 'completed' });
+    expect(persisted?.completedAt).toBe('2026-01-01T00:00:03.000Z');
     expect(persisted?.completedClearedAt).toBe('2026-01-01T00:00:04.000Z');
     expect(persisted?.deletedAt).toBeUndefined();
     expect(persisted?.createdAt).not.toBe(persisted?.modifiedAt);
@@ -88,9 +89,11 @@ describe('PlannerRepository', () => {
       completedClearedAt: '2026-01-01T00:00:04.000Z',
     });
     await reopenedRepository.setTaskCompleted(task.id, false);
+    expect((await reopened.tasks.get(task.id))?.completedAt).toBeUndefined();
     await reopenedRepository.setTaskCompleted(task.id, true);
     const newlyCompleted = await reopened.tasks.get(task.id);
     expect(newlyCompleted).toMatchObject({ status: 'completed' });
+    expect(newlyCompleted?.completedAt).toBeDefined();
     expect(newlyCompleted?.completedClearedAt).toBeUndefined();
     reopened.close();
     await reopened.delete();

@@ -407,9 +407,105 @@ test('persists the mobile Phase 2A plan through reload and offline reopening', a
   }
 });
 
+test('persists the mobile Phase 2B dashboard through reload and offline reopening', async ({
+  page,
+  context,
+}, testInfo) => {
+  test.skip(!testInfo.project.name.includes('mobile'), 'Mobile-only Phase 2B flow');
+  await page.goto(githubPagesBasePath);
+  await expect(page.getByRole('heading', { name: 'A calm view of what matters' })).toBeVisible();
+
+  const quickAddCard = page.getByRole('region', { name: 'Quick Add' });
+  await quickAddCard.getByRole('button', { name: 'Add a task' }).click();
+  const quickAdd = page.getByRole('dialog', { name: 'Quick Add' });
+  await quickAdd.getByRole('textbox', { name: 'Task title' }).fill('Dashboard mobile task');
+  await quickAdd.getByRole('radio', { name: 'Today' }).check();
+  await quickAdd.getByRole('button', { name: 'Save', exact: true }).click();
+
+  const todayCard = page.getByRole('region', { name: 'Today' });
+  await expect(todayCard.getByRole('button', { name: 'Dashboard mobile task' })).toBeVisible();
+  await todayCard.getByRole('checkbox', { name: 'Complete Dashboard mobile task' }).click();
+  await expect(
+    page
+      .getByRole('region', { name: 'Recently Completed' })
+      .getByRole('button', { name: 'Dashboard mobile task' }),
+  ).toBeVisible();
+
+  await page.getByRole('button', { name: 'Customise dashboard' }).click();
+  const customizer = page.getByRole('region', { name: /Editing Overview/ });
+  await customizer.getByRole('checkbox', { name: 'Overdue' }).uncheck();
+  await customizer.getByLabel('Size for Quick Add').selectOption('wide');
+  await customizer.getByRole('button', { name: 'Move Quick Add down' }).click();
+  await customizer.getByRole('button', { name: 'Save dashboard' }).click();
+  await expect(page.getByLabel('Dashboard layout')).toHaveValue(/.+/);
+  await expect(page.getByRole('region', { name: 'Overdue' })).toHaveCount(0);
+
+  await page.reload();
+  await expect(page.getByRole('region', { name: 'Overdue' })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Quick Add' })).toHaveAttribute(
+    'data-card-size',
+    'wide',
+  );
+  await expect(
+    page
+      .getByRole('region', { name: 'Recently Completed' })
+      .getByRole('button', { name: 'Dashboard mobile task' }),
+  ).toBeVisible();
+
+  await page.evaluate(async () => navigator.serviceWorker.ready);
+  await context.setOffline(true);
+  try {
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { name: 'A calm view of what matters' })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Overdue' })).toHaveCount(0);
+    await expect(
+      page
+        .getByRole('region', { name: 'Recently Completed' })
+        .getByRole('button', { name: 'Dashboard mobile task' }),
+    ).toBeVisible();
+  } finally {
+    await context.setOffline(false);
+  }
+});
+
+test('dashboard cards respond without horizontal overflow at large text', async ({
+  page,
+}, testInfo) => {
+  await page.goto(githubPagesBasePath);
+  await expect(page.getByRole('heading', { name: 'A calm view of what matters' })).toBeVisible();
+
+  const widths = await page.locator('.dashboard-card').evaluateAll((cards) => {
+    const result: Record<string, number> = {};
+    for (const card of cards) {
+      const size = card.getAttribute('data-card-size');
+      if (size) result[size] = card.getBoundingClientRect().width;
+    }
+    return result;
+  });
+  const compactWidth = widths.compact ?? 0;
+  const standardWidth = widths.standard ?? 0;
+  const wideWidth = widths.wide ?? 0;
+  if (testInfo.project.name.includes('desktop')) {
+    expect(wideWidth).toBeGreaterThan(standardWidth);
+    expect(standardWidth).toBeGreaterThan(compactWidth);
+  } else {
+    expect(Math.abs(wideWidth - compactWidth)).toBeLessThan(2);
+  }
+
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '200%';
+  });
+  const overflow = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+  expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth);
+  await expect(page.getByRole('button', { name: 'Customise dashboard' })).toBeVisible();
+});
+
 test('reloads the application shell while offline', async ({ page, context }) => {
   await page.goto(githubPagesBasePath);
-  await expect(page.getByRole('heading', { name: 'Make room for what matters.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'A calm view of what matters' })).toBeVisible();
   await page.evaluate(async () => {
     await navigator.serviceWorker.ready;
   });
@@ -417,7 +513,7 @@ test('reloads the application shell while offline', async ({ page, context }) =>
   await context.setOffline(true);
   try {
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('heading', { name: 'Make room for what matters.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'A calm view of what matters' })).toBeVisible();
   } finally {
     await context.setOffline(false);
   }
