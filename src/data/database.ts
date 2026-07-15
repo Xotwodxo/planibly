@@ -6,11 +6,15 @@ import {
   STARTER_DATA_VERSION,
   type AreaRecord,
   type PlanListRecord,
+  type TagRecord,
   type TaskRecord,
+  type TaskRelationshipRecord,
+  type TaskStepRecord,
+  type TaskTagRecord,
 } from './plannerTypes';
 
 export const DATABASE_NAME = 'planibly';
-export const DATABASE_SCHEMA_VERSION = 3;
+export const DATABASE_SCHEMA_VERSION = 4;
 
 export type MetadataRecord = {
   key: string;
@@ -81,6 +85,31 @@ export const schemaVersions: readonly SchemaVersion[] = [
       });
     },
   },
+  {
+    version: 4,
+    stores: {
+      metadata: '&key, updatedAt',
+      diagnostics: '&id, level, event, createdAt',
+      areas: '&id, order, createdAt, modifiedAt, deletedAt',
+      lists: '&id, areaId, [areaId+order], systemType, createdAt, modifiedAt, deletedAt',
+      tasks:
+        '&id, listId, [listId+order], status, completedClearedAt, createdAt, modifiedAt, deletedAt',
+      taskSteps: '&id, taskId, [taskId+order], createdAt, modifiedAt, deletedAt',
+      tags: '&id, normalizedName, createdAt, modifiedAt, deletedAt',
+      taskTags: '&id, taskId, tagId, &[taskId+tagId], createdAt',
+      taskRelationships:
+        '&id, predecessorTaskId, successorTaskId, [predecessorTaskId+successorTaskId], createdAt, modifiedAt, deletedAt',
+    },
+    migrate: async (transaction) => {
+      const metadata = transaction.table<MetadataRecord>('metadata');
+      const current = await metadata.get('schemaVersion');
+      await metadata.put({
+        key: 'schemaVersion',
+        value: '4',
+        updatedAt: current?.updatedAt ?? new Date(0).toISOString(),
+      });
+    },
+  },
 ];
 
 export class PlaniblyDatabase extends Dexie {
@@ -89,6 +118,10 @@ export class PlaniblyDatabase extends Dexie {
   areas!: EntityTable<AreaRecord, 'id'>;
   lists!: EntityTable<PlanListRecord, 'id'>;
   tasks!: EntityTable<TaskRecord, 'id'>;
+  taskSteps!: EntityTable<TaskStepRecord, 'id'>;
+  tags!: EntityTable<TagRecord, 'id'>;
+  taskTags!: EntityTable<TaskTagRecord, 'id'>;
+  taskRelationships!: EntityTable<TaskRelationshipRecord, 'id'>;
 
   public constructor(name = DATABASE_NAME) {
     super(name);

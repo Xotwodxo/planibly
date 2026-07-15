@@ -23,6 +23,10 @@ describe('PlaniblyDatabase', () => {
       'diagnostics',
       'lists',
       'metadata',
+      'tags',
+      'taskRelationships',
+      'taskSteps',
+      'taskTags',
       'tasks',
     ]);
 
@@ -63,7 +67,7 @@ describe('PlaniblyDatabase', () => {
     await expect(upgraded.diagnostics.get('diagnostic-1')).resolves.toMatchObject({
       message: 'Keep me',
     });
-    expect(upgraded.verno).toBe(3);
+    expect(upgraded.verno).toBe(DATABASE_SCHEMA_VERSION);
     expect(await upgraded.areas.count()).toBe(5);
     expect(await upgraded.lists.count()).toBe(1);
 
@@ -103,6 +107,48 @@ describe('PlaniblyDatabase', () => {
     const task = await upgraded.tasks.get('completed-v2-task');
     expect(task).toMatchObject({ title: 'Already completed', status: 'completed' });
     expect(task?.completedClearedAt).toBeUndefined();
+
+    upgraded.close();
+    await upgraded.delete();
+  });
+
+  it('upgrades Phase 1A data to Phase 1B without changing existing tasks', async () => {
+    const name = `planibly-phase-1b-upgrade-${crypto.randomUUID()}`;
+    const legacy = new Dexie(name);
+    legacy.version(3).stores({
+      metadata: '&key, updatedAt',
+      diagnostics: '&id, level, event, createdAt',
+      areas: '&id, order, createdAt, modifiedAt, deletedAt',
+      lists: '&id, areaId, [areaId+order], systemType, createdAt, modifiedAt, deletedAt',
+      tasks:
+        '&id, listId, [listId+order], status, completedClearedAt, createdAt, modifiedAt, deletedAt',
+    });
+    await legacy.open();
+    await legacy.table('tasks').put({
+      id: 'phase-1a-task',
+      title: 'Preserve this task',
+      listId: INBOX_LIST_ID,
+      status: 'completed',
+      completedClearedAt: '2026-02-01T00:00:00.000Z',
+      order: 0,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      modifiedAt: '2026-02-01T00:00:00.000Z',
+    });
+    legacy.close();
+
+    const upgraded = new PlaniblyDatabase(name);
+    await initializeDatabase(upgraded);
+
+    await expect(upgraded.tasks.get('phase-1a-task')).resolves.toMatchObject({
+      title: 'Preserve this task',
+      status: 'completed',
+      completedClearedAt: '2026-02-01T00:00:00.000Z',
+    });
+    expect(await upgraded.taskSteps.count()).toBe(0);
+    expect(await upgraded.tags.count()).toBe(0);
+    expect(await upgraded.taskTags.count()).toBe(0);
+    expect(await upgraded.taskRelationships.count()).toBe(0);
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '4' });
 
     upgraded.close();
     await upgraded.delete();

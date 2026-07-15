@@ -154,6 +154,112 @@ test('persists the primary mobile organisation flow through reload and offline u
   }
 });
 
+test('persists mobile steps, tags, and blocking through reload and offline use', async ({
+  page,
+  context,
+}, testInfo) => {
+  test.skip(!testInfo.project.name.includes('mobile'), 'Mobile-only Phase 1B flow');
+  await page.goto('/planibly/lists');
+
+  async function quickAdd(title: string) {
+    await page.locator('.quick-add-fab').click();
+    const quickAddDialog = page.getByRole('dialog', { name: 'Quick Add' });
+    await quickAddDialog.getByRole('textbox', { name: 'Task title' }).fill(title);
+    await quickAddDialog.getByRole('button', { name: 'Save', exact: true }).click();
+  }
+
+  await quickAdd('Pack bag');
+  await quickAdd('Leave home');
+  await page.getByRole('button', { name: 'Edit Pack bag' }).click();
+  const editor = page.getByRole('dialog', { name: 'Edit task' });
+
+  const stepInput = editor.getByRole('textbox', { name: 'New step title' });
+  await stepInput.fill('Add charger');
+  await editor.getByRole('button', { name: 'Add', exact: true }).click();
+  await stepInput.fill('Add keys');
+  await editor.getByRole('button', { name: 'Add', exact: true }).click();
+  await editor.getByRole('checkbox', { name: 'Complete Add charger' }).click();
+  await expect(editor.getByRole('checkbox', { name: 'Mark incomplete Add charger' })).toBeChecked();
+
+  await editor.getByRole('textbox', { name: 'New tag' }).fill('Out');
+  await editor.getByRole('button', { name: 'Create tag' }).click();
+  await editor.getByRole('checkbox', { name: 'Out' }).click();
+  await expect(editor.getByRole('checkbox', { name: 'Out' })).toBeChecked();
+
+  await editor
+    .getByRole('combobox', { name: 'Task that happens after this task' })
+    .selectOption({ label: 'Leave home' });
+  await editor.getByRole('button', { name: 'Add after' }).click();
+  await expect(
+    editor.getByRole('heading', { name: 'After this task' }).locator('..'),
+  ).toContainText('Leave home');
+  await editor.getByRole('button', { name: 'Close', exact: true }).click();
+
+  await expect(page.getByText('1 of 2 steps')).toBeVisible();
+  await expect(page.getByText('Out')).toBeVisible();
+  await expect(page.getByText('Blocked by Pack bag')).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: 'Complete Leave home' })).toBeDisabled();
+
+  await page.reload();
+  await expect(page.getByText('1 of 2 steps')).toBeVisible();
+  await expect(page.getByText('Out')).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: 'Complete Leave home' })).toBeDisabled();
+  await page.evaluate(async () => navigator.serviceWorker.ready);
+
+  await context.setOffline(true);
+  try {
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.getByText('1 of 2 steps')).toBeVisible();
+    await expect(page.getByText('Out')).toBeVisible();
+    await page.getByRole('checkbox', { name: 'Complete Pack bag' }).check();
+    await expect(page.getByRole('checkbox', { name: 'Complete Leave home' })).toBeEnabled();
+    await page.getByRole('checkbox', { name: 'Mark incomplete Pack bag' }).uncheck();
+    await expect(page.getByRole('checkbox', { name: 'Complete Leave home' })).toBeDisabled();
+  } finally {
+    await context.setOffline(false);
+  }
+});
+
+test('keeps the mobile task editor contained and scrollable at 200% text size', async ({
+  page,
+}, testInfo) => {
+  test.skip(!testInfo.project.name.includes('mobile'), 'Mobile-only large-text assertion');
+  await page.goto('/planibly/lists');
+  await page.locator('.quick-add-fab').click();
+  const quickAdd = page.getByRole('dialog', { name: 'Quick Add' });
+  await quickAdd.getByRole('textbox', { name: 'Task title' }).fill('Read instructions');
+  await quickAdd.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit Read instructions' }).click();
+  const editor = page.getByRole('dialog', { name: 'Edit task' });
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '200%';
+  });
+
+  const geometry = await editor.evaluate((dialog) => {
+    const rect = dialog.getBoundingClientRect();
+    const style = getComputedStyle(dialog);
+    return {
+      bottom: rect.bottom,
+      clientHeight: dialog.clientHeight,
+      left: rect.left,
+      overflowY: style.overflowY,
+      right: rect.right,
+      scrollHeight: dialog.scrollHeight,
+      top: rect.top,
+      viewportHeight: innerHeight,
+      viewportWidth: innerWidth,
+    };
+  });
+  expect(geometry.left).toBeGreaterThanOrEqual(0);
+  expect(geometry.top).toBeGreaterThanOrEqual(0);
+  expect(geometry.right).toBeLessThanOrEqual(geometry.viewportWidth);
+  expect(geometry.bottom).toBeLessThanOrEqual(geometry.viewportHeight);
+  expect(geometry.overflowY).toBe('auto');
+  expect(geometry.scrollHeight).toBeGreaterThan(geometry.clientHeight);
+  await editor.getByRole('button', { name: 'Close', exact: true }).scrollIntoViewIfNeeded();
+  await expect(editor.getByRole('button', { name: 'Close', exact: true })).toBeVisible();
+});
+
 test('reloads the application shell while offline', async ({ page, context }) => {
   await page.goto(githubPagesBasePath);
   await expect(page.getByRole('heading', { name: 'Make room for what matters.' })).toBeVisible();

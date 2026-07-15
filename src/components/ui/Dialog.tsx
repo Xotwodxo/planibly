@@ -1,4 +1,4 @@
-import { useEffect, useRef, type PropsWithChildren } from 'react';
+import { useEffect, useId, useRef, type PropsWithChildren } from 'react';
 
 type DialogProps = PropsWithChildren<{
   title: string;
@@ -8,6 +8,8 @@ type DialogProps = PropsWithChildren<{
 
 export function Dialog({ children, description, onClose, title }: DialogProps) {
   const dialogReference = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const descriptionId = useId();
 
   useEffect(() => {
     const dialog = dialogReference.current;
@@ -19,8 +21,8 @@ export function Dialog({ children, description, onClose, title }: DialogProps) {
     <dialog
       ref={dialogReference}
       className="dialog"
-      aria-describedby={description ? 'dialog-description' : undefined}
-      aria-labelledby="dialog-title"
+      aria-describedby={description ? descriptionId : undefined}
+      aria-labelledby={titleId}
       onCancel={(event) => {
         event.preventDefault();
         onClose();
@@ -28,8 +30,8 @@ export function Dialog({ children, description, onClose, title }: DialogProps) {
     >
       <div className="dialog__heading">
         <div>
-          <h2 id="dialog-title">{title}</h2>
-          {description ? <p id="dialog-description">{description}</p> : null}
+          <h2 id={titleId}>{title}</h2>
+          {description ? <p id={descriptionId}>{description}</p> : null}
         </div>
         <button className="dialog__close" type="button" onClick={onClose} aria-label="Close dialog">
           ×

@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type FormEvent } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 
 import { Button } from '../components/ui/Button';
 import { Dialog } from '../components/ui/Dialog';
@@ -12,8 +12,8 @@ import {
 } from '../data/plannerTypes';
 import { EntityEditorDialog } from '../features/planner/EntityEditorDialog';
 import { openQuickAdd } from '../features/planner/plannerEvents';
+import { TaskEditorDialog } from '../features/planner/TaskEditorDialog';
 import { usePlannerSnapshot } from '../features/planner/usePlannerSnapshot';
-import { useUnsavedChanges } from '../features/planner/unsavedChanges';
 
 type EditorState =
   { kind: 'area'; record?: AreaRecord } | { kind: 'list'; record?: PlanListRecord };
@@ -241,11 +241,12 @@ export function ListsPage() {
                   {visibleTasks.map((task) => (
                     <li
                       key={task.id}
-                      className={`task-row${task.status === 'completed' ? ' is-completed' : ''}`}
+                      className={`task-row${task.status === 'completed' ? ' is-completed' : ''}${snapshot.blockedByTaskId[task.id]?.length ? ' is-blocked' : ''}`}
                     >
                       <label className="task-check">
                         <input
                           type="checkbox"
+                          disabled={Boolean(snapshot.blockedByTaskId[task.id]?.length)}
                           checked={pendingCompletions[task.id] ?? task.status === 'completed'}
                           onChange={(event) => void handleComplete(task, event.target.checked)}
                         />
@@ -254,13 +255,16 @@ export function ListsPage() {
                           {task.title}
                         </span>
                       </label>
-                      <button
-                        type="button"
-                        className="task-title"
-                        onClick={() => setEditingTask(task)}
-                      >
-                        {task.title}
-                      </button>
+                      <div className="task-row__content">
+                        <button
+                          type="button"
+                          className="task-title"
+                          onClick={() => setEditingTask(task)}
+                        >
+                          {task.title}
+                        </button>
+                        <TaskSummary task={task} snapshot={snapshot} />
+                      </div>
                       <button
                         type="button"
                         className="task-edit"
@@ -343,7 +347,7 @@ export function ListsPage() {
       {editingTask ? (
         <TaskEditorDialog
           task={editingTask}
-          lists={snapshot.lists}
+          snapshot={snapshot}
           onClose={() => setEditingTask(null)}
         />
       ) : null}
@@ -562,68 +566,37 @@ function DeleteListDialog({
   );
 }
 
-function TaskEditorDialog({
-  task,
-  lists,
-  onClose,
-}: {
-  task: TaskRecord;
-  lists: PlanListRecord[];
-  onClose: () => void;
-}) {
-  const [title, setTitle] = useState(task.title);
-  const [listId, setListId] = useState(task.listId);
-  const [error, setError] = useState<string | null>(null);
-  useUnsavedChanges(title !== task.title || listId !== task.listId);
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!title.trim()) {
-      setError('Enter a task title.');
-      return;
-    }
-    try {
-      await plannerRepository.updateTask(task.id, title, listId);
-      onClose();
-    } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : 'The task could not be saved.');
-    }
-  }
-
+function TaskSummary({ task, snapshot }: { task: TaskRecord; snapshot: ReturnTypeSnapshot }) {
+  const steps = snapshot.taskSteps.filter((step) => step.taskId === task.id);
+  const assignedTags = snapshot.taskTags
+    .filter((assignment) => assignment.taskId === task.id)
+    .map((assignment) => snapshot.tags.find((tag) => tag.id === assignment.tagId))
+    .filter((tag): tag is NonNullable<typeof tag> => tag !== undefined);
+  const blockers = (snapshot.blockedByTaskId[task.id] ?? [])
+    .map((id) => snapshot.tasks.find((candidate) => candidate.id === id)?.title)
+    .filter((title): title is string => title !== undefined);
   return (
-    <Dialog title="Edit task" onClose={onClose}>
-      <form className="form-stack" onSubmit={(event) => void handleSubmit(event)}>
-        <label className="field">
-          <span>Task title</span>
-          <input
-            autoFocus
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            maxLength={200}
-          />
-        </label>
-        <label className="field">
-          <span>Destination list</span>
-          <select value={listId} onChange={(event) => setListId(event.target.value)}>
-            {lists.map((list) => (
-              <option key={list.id} value={list.id}>
-                {list.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        {error ? (
-          <p className="form-error" role="alert">
-            {error}
-          </p>
-        ) : null}
-        <div className="dialog__actions">
-          <Button type="button" variant="quiet" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit">Save</Button>
-        </div>
-      </form>
-    </Dialog>
+    <div className="task-summary">
+      {blockers.length > 0 ? (
+        <span className="blocked-label">Blocked by {blockers.join(', ')}</span>
+      ) : null}
+      {steps.length > 0 ? (
+        <span>
+          {steps.filter((step) => step.completed).length} of {steps.length} steps
+        </span>
+      ) : null}
+      {assignedTags.slice(0, 3).map((tag) => (
+        <span
+          key={tag.id}
+          className="tag-chip"
+          style={{ '--tag-color': tag.color } as CSSProperties}
+        >
+          {tag.name}
+        </span>
+      ))}
+      {assignedTags.length > 3 ? <span>+{assignedTags.length - 3}</span> : null}
+    </div>
   );
 }
+
+type ReturnTypeSnapshot = ReturnType<typeof usePlannerSnapshot>['snapshot'];

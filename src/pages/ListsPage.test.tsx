@@ -127,4 +127,50 @@ describe('ListsPage', () => {
       title: 'Keep this',
     });
   });
+
+  it('edits steps, tags, and before/after relationships without overcrowding quick add', async () => {
+    const first = await plannerRepository.createTask('Assemble pack');
+    const second = await plannerRepository.createTask('Leave home');
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/lists']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole('button', { name: first.title });
+    await user.click(screen.getByRole('button', { name: `Edit ${first.title}` }));
+    const dialog = screen.getByRole('dialog', { name: 'Edit task' });
+    const stepInput = within(dialog).getByRole('textbox', { name: 'New step title' });
+    await user.type(stepInput, 'Collect notes');
+    await user.click(within(dialog).getByRole('button', { name: /^Add$/ }));
+    await user.type(stepInput, 'Pack charger');
+    await user.click(within(dialog).getByRole('button', { name: /^Add$/ }));
+    await user.click(
+      await within(dialog).findByRole('checkbox', { name: 'Complete Collect notes' }),
+    );
+
+    await user.type(within(dialog).getByRole('textbox', { name: 'New tag' }), 'Home');
+    await user.click(within(dialog).getByRole('button', { name: 'Create tag' }));
+    await user.click(await within(dialog).findByRole('checkbox', { name: 'Home' }));
+
+    await user.selectOptions(
+      within(dialog).getByRole('combobox', { name: 'Task that happens after this task' }),
+      second.id,
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Add after' }));
+    expect(
+      await within(dialog).findByRole('button', {
+        name: `Remove relationship with ${second.title}`,
+      }),
+    ).toBeVisible();
+    await user.click(within(dialog).getByRole('button', { name: 'Close' }));
+
+    await waitFor(() => expect(screen.getByText('1 of 2 steps')).toBeVisible());
+    expect(
+      screen.getAllByText('Home').find((element) => element.classList.contains('tag-chip')),
+    ).toBeVisible();
+    expect(screen.getByText(`Blocked by ${first.title}`)).toBeVisible();
+    expect(screen.getByRole('checkbox', { name: `Complete ${second.title}` })).toBeDisabled();
+  });
 });

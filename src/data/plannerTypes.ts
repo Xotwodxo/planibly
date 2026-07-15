@@ -55,8 +55,50 @@ export type TaskRecord = {
   deletedAt?: string;
 };
 
+export type TaskStepRecord = {
+  id: string;
+  taskId: string;
+  title: string;
+  completed: boolean;
+  order: number;
+  createdAt: string;
+  modifiedAt: string;
+  deletedAt?: string;
+};
+
+export type TagRecord = {
+  id: string;
+  name: string;
+  normalizedName: string;
+  color: string;
+  createdAt: string;
+  modifiedAt: string;
+  deletedAt?: string;
+};
+
+export type TaskTagRecord = {
+  id: string;
+  taskId: string;
+  tagId: string;
+  createdAt: string;
+};
+
+export type TaskRelationshipRecord = {
+  id: string;
+  predecessorTaskId: string;
+  successorTaskId: string;
+  createdAt: string;
+  modifiedAt: string;
+  deletedAt?: string;
+};
+
 export type PlannerSnapshot = {
   areas: AreaRecord[];
   lists: PlanListRecord[];
   tasks: TaskRecord[];
+  taskSteps: TaskStepRecord[];
+  tags: TagRecord[];
+  taskTags: TaskTagRecord[];
+  taskRelationships: TaskRelationshipRecord[];
+  blockedByTaskId: Record<string, string[]>;
 };

@@ -3,8 +3,9 @@
 ## Scope
 
 Read `Docs/planibly-pwa-product-specification.md` before product work and follow its phased roadmap.
-The current boundary is Phase 1A: areas, standard lists, Inbox, and basic tasks only. Do not add
-steps, tags, projects, search, smart lists beyond Inbox, Recently Deleted, undo, appointments,
+The current boundary is Phase 1B: areas, standard lists, Inbox, basic tasks, one-level task steps,
+reusable tags, and lightweight before/after task relationships with derived blocking. Do not add
+projects, search, saved filters, smart lists beyond Inbox, Recently Deleted UI, undo, appointments,
 routines, reminders, shopping-specific behavior, insights, or planning logic until the user
 explicitly begins the appropriate phase.
 

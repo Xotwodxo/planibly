@@ -1,5 +1,11 @@
 import { initializeDatabase, PlaniblyDatabase } from './database';
-import { NonEmptyEntityError, PlannerRepository } from './plannerRepository';
+import {
+  NonEmptyEntityError,
+  PlannerRepository,
+  RelationshipValidationError,
+  TagInUseError,
+  TaskBlockedError,
+} from './plannerRepository';
 import { INBOX_LIST_ID } from './plannerTypes';
 
 function createHarness() {
@@ -106,6 +112,135 @@ describe('PlannerRepository', () => {
     await repository.deleteList(list.id, true);
     await expect(database.lists.get(list.id)).resolves.toHaveProperty('deletedAt');
     await expect(database.tasks.get(task.id)).resolves.toHaveProperty('deletedAt');
+
+    database.close();
+    await database.delete();
+  });
+
+  it('persists independent step CRUD, completion, and keyboard ordering', async () => {
+    const { database, repository } = createHarness();
+    await initializeDatabase(database);
+    const task = await repository.createTask('Prepare report');
+    const first = await repository.createStep(task.id, 'Collect notes');
+    const second = await repository.createStep(task.id, 'Write outline');
+
+    await repository.updateStep(first.id, 'Collect source notes');
+    await repository.setStepCompleted(first.id, true);
+    await repository.moveStep(second.id, -1);
+    await repository.setTaskCompleted(task.id, true);
+
+    let snapshot = await repository.getSnapshot();
+    expect(snapshot.taskSteps.map((step) => step.id)).toEqual([second.id, first.id]);
+    expect(snapshot.taskSteps.find((step) => step.id === first.id)).toMatchObject({
+      title: 'Collect source notes',
+      completed: true,
+    });
+    expect(snapshot.taskSteps.find((step) => step.id === second.id)?.completed).toBe(false);
+    await repository.setStepCompleted(first.id, false);
+    expect((await database.tasks.get(task.id))?.status).toBe('completed');
+
+    await repository.deleteStep(second.id);
+    snapshot = await repository.getSnapshot();
+    expect(snapshot.taskSteps.map((step) => step.id)).toEqual([first.id]);
+    await expect(database.taskSteps.get(second.id)).resolves.toHaveProperty('deletedAt');
+
+    database.close();
+    await database.delete();
+  });
+
+  it('manages reusable tags and removes assignments only after confirmation', async () => {
+    const { database, repository } = createHarness();
+    await initializeDatabase(database);
+    const task = await repository.createTask('Make a call');
+    const tag = await repository.createTag('Phone', '#5B67C8');
+    await repository.updateTag(tag.id, 'Calls', '#3D9F98');
+    await repository.assignTag(task.id, tag.id);
+    await repository.assignTag(task.id, tag.id);
+
+    expect((await repository.getSnapshot()).taskTags).toHaveLength(1);
+    await expect(repository.deleteTag(tag.id)).rejects.toBeInstanceOf(TagInUseError);
+    await repository.unassignTag(task.id, tag.id);
+    expect((await repository.getSnapshot()).tags[0]).toMatchObject({
+      name: 'Calls',
+      color: '#3D9F98',
+    });
+    await repository.assignTag(task.id, tag.id);
+    await repository.deleteTag(tag.id, true);
+
+    expect((await repository.getSnapshot()).tags).toHaveLength(0);
+    expect(await database.taskTags.count()).toBe(0);
+    await expect(database.tasks.get(task.id)).resolves.toMatchObject({ title: 'Make a call' });
+
+    database.close();
+    await database.delete();
+  });
+
+  it('rejects self references and cycles while deriving multi-predecessor blocking', async () => {
+    const { database, repository } = createHarness();
+    await initializeDatabase(database);
+    const first = await repository.createTask('First');
+    const second = await repository.createTask('Second');
+    const third = await repository.createTask('Third');
+
+    await expect(repository.addRelationship(first.id, first.id)).rejects.toMatchObject({
+      reason: 'self',
+    });
+    const firstToSecond = await repository.addRelationship(first.id, second.id);
+    await repository.addRelationship(second.id, third.id);
+    await repository.addRelationship(first.id, third.id);
+    await expect(repository.addRelationship(third.id, first.id)).rejects.toBeInstanceOf(
+      RelationshipValidationError,
+    );
+
+    let snapshot = await repository.getSnapshot();
+    expect(snapshot.blockedByTaskId[second.id]).toEqual([first.id]);
+    expect(snapshot.blockedByTaskId[third.id]).toEqual([second.id, first.id]);
+    await expect(repository.setTaskCompleted(third.id, true)).rejects.toBeInstanceOf(
+      TaskBlockedError,
+    );
+
+    await repository.setTaskCompleted(first.id, true);
+    snapshot = await repository.getSnapshot();
+    expect(snapshot.blockedByTaskId[second.id]).toBeUndefined();
+    expect(snapshot.blockedByTaskId[third.id]).toEqual([second.id]);
+    await repository.setTaskCompleted(second.id, true);
+    expect((await repository.getSnapshot()).blockedByTaskId[third.id]).toBeUndefined();
+    await repository.setTaskCompleted(first.id, false);
+    snapshot = await repository.getSnapshot();
+    expect(snapshot.blockedByTaskId[second.id]).toEqual([first.id]);
+    expect(snapshot.blockedByTaskId[third.id]).toEqual([first.id]);
+
+    await repository.removeRelationship(firstToSecond.id);
+    expect((await repository.getSnapshot()).blockedByTaskId[second.id]).toBeUndefined();
+
+    database.close();
+    await database.delete();
+  });
+
+  it('cleans related detail records and unblocks successors when a task is soft-deleted', async () => {
+    const { database, repository } = createHarness();
+    await initializeDatabase(database);
+    const predecessor = await repository.createTask('Temporary predecessor');
+    const successor = await repository.createTask('Keep successor');
+    const step = await repository.createStep(predecessor.id, 'Temporary step');
+    const tag = await repository.createTag('Temporary tag', '#5B67C8');
+    await repository.assignTag(predecessor.id, tag.id);
+    const relationship = await repository.addRelationship(predecessor.id, successor.id);
+    expect((await repository.getSnapshot()).blockedByTaskId[successor.id]).toEqual([
+      predecessor.id,
+    ]);
+
+    await repository.deleteTask(predecessor.id);
+    const snapshot = await repository.getSnapshot();
+    expect(snapshot.blockedByTaskId[successor.id]).toBeUndefined();
+    expect(snapshot.tasks.map((task) => task.id)).toContain(successor.id);
+    await expect(database.tasks.get(predecessor.id)).resolves.toHaveProperty('deletedAt');
+    await expect(database.taskSteps.get(step.id)).resolves.toHaveProperty('deletedAt');
+    await expect(database.taskRelationships.get(relationship.id)).resolves.toHaveProperty(
+      'deletedAt',
+    );
+    expect(await database.taskTags.where('taskId').equals(predecessor.id).count()).toBe(0);
+    expect((await database.tags.get(tag.id))?.deletedAt).toBeUndefined();
 
     database.close();
     await database.delete();

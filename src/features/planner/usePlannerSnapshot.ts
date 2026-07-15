@@ -8,7 +8,16 @@ import {
 } from '../../data/plannerRepository';
 import type { PlannerSnapshot } from '../../data/plannerTypes';
 
-const EMPTY_SNAPSHOT: PlannerSnapshot = { areas: [], lists: [], tasks: [] };
+const EMPTY_SNAPSHOT: PlannerSnapshot = {
+  areas: [],
+  lists: [],
+  tasks: [],
+  taskSteps: [],
+  tags: [],
+  taskTags: [],
+  taskRelationships: [],
+  blockedByTaskId: {},
+};
 
 export function usePlannerSnapshot(repository: PlannerRepository = plannerRepository) {
   const [snapshot, setSnapshot] = useState<PlannerSnapshot>(EMPTY_SNAPSHOT);
