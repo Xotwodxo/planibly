@@ -18,12 +18,16 @@ const EMPTY_SNAPSHOT: PlannerSnapshot = {
   taskTags: [],
   taskRelationships: [],
   plannedPlacements: [],
+  calendars: [],
+  calendarEvents: [],
   blockedByTaskId: {},
   projectProgressByListId: {},
   deletedAreas: [],
   deletedLists: [],
   deletedTasks: [],
   deletedSteps: [],
+  deletedCalendars: [],
+  deletedCalendarEvents: [],
 };
 
 export function usePlannerSnapshot(repository: PlannerRepository = plannerRepository) {

@@ -1,11 +1,10 @@
 # Planibly
 
 Planibly is a zero-cost, private, offline-first personal planning PWA. This repository currently
-implements the installable Phase 0 foundation, the Phase 1 task-management system, and the first
-controlled planning increments through **Phase 2C**. This includes organisation, task details,
-projects, local search and recovery, optional planning fields, date smart lists, and a functional
-Plan screen, a configurable offline Home dashboard, daily capacity, and deliberate seven-day
-planning. Calendar-event integration and later planning phases remain intentionally out of scope.
+implements the installable foundation and the local planning system through **Phase 3A**. Alongside
+organisation, projects, search, recovery, planning, capacity, and the configurable Home dashboard,
+it now includes private internal calendars and appointments integrated into Calendar, Plan, and
+Home. Recurrence, reminders, external calendar access, ICS, and timelines remain out of scope.
 
 ## What Phase 0 contains
 
@@ -72,6 +71,15 @@ planning. Calendar-event integration and later planning phases remain intentiona
 - Unscheduled, flexible-range, and upcoming-deadline planning sources with no automatic scheduling
 - Explicit review of incomplete earlier plans without treating planned dates as deadlines
 - Dexie schema version 8 with durable agenda placements, manual group order, and capacity records
+
+## What Phase 3A contains
+
+- Multiple local calendars with ordering, visibility, colour, protected starter data, and recovery
+- Validated all-day and timed appointments using explicit local dates and wall-clock times
+- A responsive Monday-first month view, selected-day agenda, and bounded upcoming agenda
+- Informational appointment and overlap presentation in Plan without changing task capacity
+- Today-card appointment summaries without changing saved dashboard layout definitions
+- Dexie schema version 9 with grouped soft deletion, undo, restoration, and permanent deletion
 
 There is no backend, account, analytics, external AI, paid service, or native iOS integration.
 
@@ -170,5 +178,6 @@ See [Docs/phase-0-architecture.md](Docs/phase-0-architecture.md),
 [Docs/phase-1c-architecture.md](Docs/phase-1c-architecture.md), and
 [Docs/phase-2a-architecture.md](Docs/phase-2a-architecture.md), and
 [Docs/phase-2b-architecture.md](Docs/phase-2b-architecture.md), and
-[Docs/phase-2c-architecture.md](Docs/phase-2c-architecture.md) for the current architecture, data
+[Docs/phase-2c-architecture.md](Docs/phase-2c-architecture.md), and
+[Docs/phase-3a-architecture.md](Docs/phase-3a-architecture.md) for the current architecture, data
 invariants, and manual device checks.

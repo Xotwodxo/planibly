@@ -6,6 +6,8 @@ import { App } from '../App';
 import { database, initializeDatabase } from '../data/database';
 import { addCalendarDays, localDateFromDate } from '../data/planning';
 import { plannerRepository } from '../data/plannerRepository';
+import { calendarRepository } from '../data/calendarRepository';
+import { DEFAULT_CALENDAR_ID } from '../data/plannerTypes';
 import { TaskEditorDialog } from '../features/planner/TaskEditorDialog';
 
 async function resetDatabase() {
@@ -20,6 +22,32 @@ describe('Phase 2A planning interface', () => {
   afterEach(async () => {
     database.close();
     await database.delete();
+  });
+
+  it('shows appointments separately, summarizes event time, and reports overlaps', async () => {
+    const today = localDateFromDate(new Date());
+    await plannerRepository.createTask('Timed task', undefined, {
+      plannedDate: today,
+      exactStartTime: '09:30',
+      estimatedDurationMinutes: 60,
+    });
+    await calendarRepository.saveEvent({
+      calendarId: DEFAULT_CALENDAR_ID,
+      title: 'Appointment',
+      startDate: today,
+      endDate: today,
+      allDay: false,
+      startTime: '09:00',
+      endTime: '10:00',
+    });
+    render(
+      <MemoryRouter initialEntries={['/plan']}>
+        <App />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole('heading', { name: 'Appointments' })).toBeVisible();
+    expect(screen.getByText(/Scheduled events: 1 hr/)).toBeVisible();
+    expect(screen.getByText('Appointment overlaps Timed task.')).toBeVisible();
   });
 
   it('renders the functional Plan sections and respects blocking while completing', async () => {

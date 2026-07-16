@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Dialog } from '../components/ui/Dialog';
 import { Surface } from '../components/ui/Surface';
+import { calendarRepository } from '../data/calendarRepository';
 import { plannerRepository, RestoreParentRequiredError } from '../data/plannerRepository';
 import { localDateFromDate, smartTasksFromSnapshot } from '../data/planning';
 import {
@@ -802,11 +803,28 @@ function RecentlyDeletedPanel({ snapshot }: { snapshot: PlannerSnapshot }) {
     label: string;
   } | null>(null);
   const [emptyConfirm, setEmptyConfirm] = useState(false);
+  const [recoveryAnnouncement, setRecoveryAnnouncement] = useState('');
+  const [eventRestore, setEventRestore] = useState<{ id: string; calendarId: string } | null>(null);
   const items = deletedItems(snapshot);
 
   async function restore(kind: DeletionEntityKind, id: string, withParents = false) {
     try {
+      if (kind === 'calendar') {
+        await calendarRepository.restoreCalendar(id);
+        setRecoveryAnnouncement('Calendar restored.');
+        return;
+      }
+      if (kind === 'event') {
+        try {
+          await calendarRepository.restoreEvent(id);
+          setRecoveryAnnouncement('Event restored.');
+        } catch {
+          setEventRestore({ id, calendarId: snapshot.calendars[0]?.id ?? '' });
+        }
+        return;
+      }
       await plannerRepository.restoreDeletedEntity(kind, id, withParents);
+      setRecoveryAnnouncement(`${kind} restored.`);
       setRestoreRequest(null);
     } catch (caughtError) {
       if (caughtError instanceof RestoreParentRequiredError) {
@@ -835,7 +853,9 @@ function RecentlyDeletedPanel({ snapshot }: { snapshot: PlannerSnapshot }) {
       {items.length === 0 ? (
         <div className="empty-state">
           <h3>Nothing to recover</h3>
-          <p>Deleted areas, lists, projects, tasks, and steps will appear here.</p>
+          <p>
+            Deleted calendars, events, areas, lists, projects, tasks, and steps will appear here.
+          </p>
         </div>
       ) : (
         <ul className="recovery-list">
@@ -855,14 +875,18 @@ function RecentlyDeletedPanel({ snapshot }: { snapshot: PlannerSnapshot }) {
                 >
                   Restore
                 </Button>
-                <Button
-                  type="button"
-                  variant="quiet"
-                  className="destructive-text"
-                  onClick={() => setPermanentRequest(item)}
-                >
-                  Delete forever
-                </Button>
+                {item.canDeleteForever !== false ? (
+                  <Button
+                    type="button"
+                    variant="quiet"
+                    className="destructive-text"
+                    onClick={() => setPermanentRequest(item)}
+                  >
+                    Delete forever
+                  </Button>
+                ) : (
+                  <span className="field-help">Protected from permanent deletion</span>
+                )}
               </div>
             </li>
           ))}
@@ -884,9 +908,13 @@ function RecentlyDeletedPanel({ snapshot }: { snapshot: PlannerSnapshot }) {
           confirmLabel="Delete forever"
           onClose={() => setPermanentRequest(null)}
           onConfirm={() =>
-            void plannerRepository
-              .permanentlyDelete(permanentRequest.kind, permanentRequest.id)
-              .then(() => setPermanentRequest(null))
+            void (
+              permanentRequest.kind === 'calendar'
+                ? calendarRepository.permanentlyDeleteCalendar(permanentRequest.id)
+                : permanentRequest.kind === 'event'
+                  ? calendarRepository.permanentlyDeleteEvent(permanentRequest.id)
+                  : plannerRepository.permanentlyDelete(permanentRequest.kind, permanentRequest.id)
+            ).then(() => setPermanentRequest(null))
           }
         />
       ) : null}
@@ -897,10 +925,57 @@ function RecentlyDeletedPanel({ snapshot }: { snapshot: PlannerSnapshot }) {
           confirmLabel="Empty Recently Deleted"
           onClose={() => setEmptyConfirm(false)}
           onConfirm={() =>
-            void plannerRepository.emptyRecentlyDeleted().then(() => setEmptyConfirm(false))
+            void Promise.all([
+              plannerRepository.emptyRecentlyDeleted(),
+              calendarRepository.emptyRecentlyDeleted(),
+            ]).then(() => setEmptyConfirm(false))
           }
         />
       ) : null}
+      {eventRestore ? (
+        <Dialog
+          title="Choose a calendar"
+          description="The event's original calendar is unavailable. Choose an active calendar to restore it."
+          onClose={() => setEventRestore(null)}
+        >
+          <label className="field">
+            <span>Calendar</span>
+            <select
+              value={eventRestore.calendarId}
+              onChange={(event) =>
+                setEventRestore({ ...eventRestore, calendarId: event.target.value })
+              }
+            >
+              {snapshot.calendars.map((calendar) => (
+                <option key={calendar.id} value={calendar.id}>
+                  {calendar.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="dialog__actions">
+            <Button variant="quiet" onClick={() => setEventRestore(null)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!eventRestore.calendarId}
+              onClick={() =>
+                void calendarRepository
+                  .restoreEvent(eventRestore.id, eventRestore.calendarId)
+                  .then(() => {
+                    setEventRestore(null);
+                    setRecoveryAnnouncement('Event restored.');
+                  })
+              }
+            >
+              Restore event
+            </Button>
+          </div>
+        </Dialog>
+      ) : null}
+      <div className="visually-hidden" aria-live="polite">
+        {recoveryAnnouncement}
+      </div>
     </div>
   );
 }
@@ -916,6 +991,7 @@ function deletedItems(snapshot: PlannerSnapshot) {
       label: area.name,
       location: 'Area',
       deletedAt: area.deletedAt!,
+      canDeleteForever: true,
     })),
     ...snapshot.deletedLists.map((list) => ({
       kind: 'list' as const,
@@ -923,6 +999,7 @@ function deletedItems(snapshot: PlannerSnapshot) {
       label: list.name,
       location: `${list.mode === 'project' ? 'Project' : 'List'} in ${allAreas.find((area) => area.id === list.areaId)?.name ?? 'deleted area'}`,
       deletedAt: list.deletedAt!,
+      canDeleteForever: true,
     })),
     ...snapshot.deletedTasks.map((task) => ({
       kind: 'task' as const,
@@ -930,6 +1007,7 @@ function deletedItems(snapshot: PlannerSnapshot) {
       label: task.title,
       location: `Task in ${allLists.find((list) => list.id === task.listId)?.name ?? 'deleted list'}`,
       deletedAt: task.deletedAt!,
+      canDeleteForever: true,
     })),
     ...snapshot.deletedSteps.map((step) => ({
       kind: 'step' as const,
@@ -937,6 +1015,23 @@ function deletedItems(snapshot: PlannerSnapshot) {
       label: step.title,
       location: `Step in ${allTasks.find((task) => task.id === step.taskId)?.title ?? 'deleted task'}`,
       deletedAt: step.deletedAt!,
+      canDeleteForever: true,
+    })),
+    ...snapshot.deletedCalendars.map((calendar) => ({
+      kind: 'calendar' as const,
+      id: calendar.id,
+      label: calendar.name,
+      location: calendar.isProtected ? 'Protected calendar' : 'Calendar',
+      deletedAt: calendar.deletedAt!,
+      canDeleteForever: !calendar.isProtected,
+    })),
+    ...snapshot.deletedCalendarEvents.map((event) => ({
+      kind: 'event' as const,
+      id: event.id,
+      label: event.title,
+      location: `Event in ${[...snapshot.calendars, ...snapshot.deletedCalendars].find((calendar) => calendar.id === event.calendarId)?.name ?? 'deleted calendar'}`,
+      deletedAt: event.deletedAt!,
+      canDeleteForever: true,
     })),
   ].sort((left, right) => right.deletedAt.localeCompare(left.deletedAt));
 }

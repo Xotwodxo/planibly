@@ -6,6 +6,8 @@ import { App } from '../App';
 import { database, initializeDatabase } from '../data/database';
 import { localDateFromDate } from '../data/planning';
 import { plannerRepository } from '../data/plannerRepository';
+import { calendarRepository } from '../data/calendarRepository';
+import { DEFAULT_CALENDAR_ID } from '../data/plannerTypes';
 
 async function resetDatabase() {
   database.close();
@@ -44,6 +46,29 @@ describe('Phase 2B Home dashboard', () => {
       '10000000-0000-4000-8000-000000000001',
     );
     await user.click(within(dialog).getByRole('button', { name: 'Close dialog' }));
+  });
+
+  it('includes visible appointments in the existing Today card and opens the event editor', async () => {
+    const today = localDateFromDate(new Date());
+    await calendarRepository.saveEvent({
+      calendarId: DEFAULT_CALENDAR_ID,
+      title: 'Check-up',
+      startDate: today,
+      endDate: today,
+      allDay: false,
+      startTime: '10:00',
+      endTime: '10:30',
+    });
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <App />
+      </MemoryRouter>,
+    );
+    const todayCard = await screen.findByRole('region', { name: 'Today' });
+    expect(within(todayCard).getByText(/Appointment · 10:00–10:30 · Personal/)).toBeVisible();
+    await user.click(within(todayCard).getByRole('button', { name: 'Check-up' }));
+    expect(screen.getByRole('dialog', { name: 'Edit event' })).toBeVisible();
   });
 
   it('renders live task data, explains blocking, and opens the existing editor', async () => {

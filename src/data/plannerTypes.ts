@@ -76,6 +76,38 @@ export type PlanningCapacityRecord = {
   modifiedAt: string;
 };
 
+export const DEFAULT_CALENDAR_ID = '90000000-0000-4000-8000-000000000001';
+
+export type CalendarRecord = {
+  id: string;
+  name: string;
+  color: string;
+  order: number;
+  isVisible: boolean;
+  isProtected?: boolean;
+  createdAt: string;
+  modifiedAt: string;
+  deletedAt?: string;
+  deletionGroupId?: string;
+};
+
+export type CalendarEventRecord = {
+  id: string;
+  calendarId: string;
+  title: string;
+  startDate: string;
+  endDate: string;
+  allDay: boolean;
+  startTime?: string;
+  endTime?: string;
+  location?: string;
+  notes?: string;
+  createdAt: string;
+  modifiedAt: string;
+  deletedAt?: string;
+  deletionGroupId?: string;
+};
+
 export type TaskPlanning = {
   plannedDate?: string;
   deadlineDate?: string;
@@ -142,7 +174,7 @@ export type TaskRelationshipRecord = {
   deletionGroupId?: string;
 };
 
-export type DeletionEntityKind = 'area' | 'list' | 'task' | 'step';
+export type DeletionEntityKind = 'area' | 'list' | 'task' | 'step' | 'calendar' | 'event';
 
 export type DeletionReceipt = {
   groupId: string;
@@ -152,6 +184,7 @@ export type DeletionReceipt = {
   deletedAt: string;
   operation?: 'delete' | 'archive';
   movedListIds?: string[];
+  movedEventIds?: string[];
 };
 
 export type ProjectProgress = {
@@ -211,10 +244,14 @@ export type PlannerSnapshot = {
   taskTags: TaskTagRecord[];
   taskRelationships: TaskRelationshipRecord[];
   plannedPlacements: PlannedPlacementRecord[];
+  calendars: CalendarRecord[];
+  calendarEvents: CalendarEventRecord[];
   blockedByTaskId: Record<string, string[]>;
   projectProgressByListId: Record<string, ProjectProgress>;
   deletedAreas: AreaRecord[];
   deletedLists: PlanListRecord[];
   deletedTasks: TaskRecord[];
   deletedSteps: TaskStepRecord[];
+  deletedCalendars: CalendarRecord[];
+  deletedCalendarEvents: CalendarEventRecord[];
 };

@@ -20,7 +20,8 @@ import {
 } from '../data/dashboardTypes';
 import { localDateFromDate } from '../data/planning';
 import { plannerRepository } from '../data/plannerRepository';
-import type { TaskRecord } from '../data/plannerTypes';
+import type { CalendarEventRecord, TaskRecord } from '../data/plannerTypes';
+import { EventEditorDialog } from '../features/calendar/EventEditorDialog';
 import { DashboardCard } from '../features/dashboard/DashboardCard';
 import { useDashboardState } from '../features/dashboard/useDashboardState';
 import { TaskEditorDialog } from '../features/planner/TaskEditorDialog';
@@ -36,6 +37,7 @@ export function HomePage() {
   const [draftCards, setDraftCards] = useState<DashboardCardConfig[]>([]);
   const [draftName, setDraftName] = useState('');
   const [editingTask, setEditingTask] = useState<TaskRecord | null>(null);
+  const [editingEvent, setEditingEvent] = useState<CalendarEventRecord | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation>(null);
   const [announcement, setAnnouncement] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
@@ -263,6 +265,7 @@ export function HomePage() {
             today={today}
             onComplete={completeTask}
             onEdit={setEditingTask}
+            onEditEvent={setEditingEvent}
           />
         ))}
       </div>
@@ -275,6 +278,15 @@ export function HomePage() {
           task={editingTask}
           snapshot={snapshot}
           onClose={() => setEditingTask(null)}
+        />
+      ) : null}
+      {editingEvent ? (
+        <EventEditorDialog
+          event={editingEvent}
+          calendars={snapshot.calendars}
+          initialDate={today}
+          onAnnounce={setAnnouncement}
+          onClose={() => setEditingEvent(null)}
         />
       ) : null}
       {confirmation ? (

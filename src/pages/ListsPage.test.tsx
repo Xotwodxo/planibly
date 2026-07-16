@@ -5,6 +5,8 @@ import { MemoryRouter } from 'react-router-dom';
 import { App } from '../App';
 import { database, initializeDatabase } from '../data/database';
 import { plannerRepository } from '../data/plannerRepository';
+import { calendarRepository } from '../data/calendarRepository';
+import { DEFAULT_CALENDAR_ID } from '../data/plannerTypes';
 
 async function resetDatabase() {
   database.close();
@@ -20,6 +22,28 @@ describe('ListsPage', () => {
   afterEach(async () => {
     database.close();
     await database.delete();
+  });
+
+  it('includes deleted calendar events in recovery and restores them', async () => {
+    const event = await calendarRepository.saveEvent({
+      calendarId: DEFAULT_CALENDAR_ID,
+      title: 'Recover appointment',
+      startDate: '2026-07-16',
+      endDate: '2026-07-16',
+      allDay: true,
+    });
+    await calendarRepository.deleteEvent(event.id);
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/lists?smart=recentlyDeleted']}>
+        <App />
+      </MemoryRouter>,
+    );
+    const recovery = await screen.findByText('Recover appointment');
+    const row = recovery.closest('li')!;
+    await user.click(within(row).getByRole('button', { name: 'Restore' }));
+    await waitFor(() => expect(screen.queryByText('Recover appointment')).not.toBeInTheDocument());
+    expect((await database.calendarEvents.get(event.id))?.deletedAt).toBeUndefined();
   });
 
   it('persists cleared completed tasks without deleting them and keeps newly completed tasks visible', async () => {

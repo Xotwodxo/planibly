@@ -15,9 +15,16 @@ import {
   weekdayForLocalDate,
 } from '../data/agenda';
 import { agendaRepository } from '../data/agendaRepository';
+import {
+  eventsForDate,
+  scheduledEventMinutes,
+  timeOverlaps,
+  visibleCalendarEvents,
+} from '../data/calendar';
 import { addCalendarDays, formatLocalDate, isLocalDate, localDateFromDate } from '../data/planning';
 import { plannerRepository } from '../data/plannerRepository';
-import type { PlannerSnapshot, TaskRecord } from '../data/plannerTypes';
+import type { CalendarEventRecord, PlannerSnapshot, TaskRecord } from '../data/plannerTypes';
+import { EventEditorDialog } from '../features/calendar/EventEditorDialog';
 import { TaskEditorDialog } from '../features/planner/TaskEditorDialog';
 import { usePlannerSnapshot } from '../features/planner/usePlannerSnapshot';
 import { usePlanningCapacities } from '../features/planner/usePlanningCapacities';
@@ -31,6 +38,7 @@ export function PlanPage() {
   const [selectedDate, setSelectedDate] = useState(today);
   const [horizonStart, setHorizonStart] = useState(today);
   const [editingTask, setEditingTask] = useState<TaskRecord | null>(null);
+  const [editingEvent, setEditingEvent] = useState<CalendarEventRecord | null>(null);
   const [announcement, setAnnouncement] = useState('');
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   const [bulkDate, setBulkDate] = useState(today);
@@ -42,6 +50,19 @@ export function PlanPage() {
   const groups = useMemo(
     () => agendaGroupsFromSnapshot(snapshot, selectedDate),
     [selectedDate, snapshot],
+  );
+  const dayEvents = useMemo(
+    () => eventsForDate(visibleCalendarEvents(snapshot), selectedDate),
+    [selectedDate, snapshot],
+  );
+  const overlaps = useMemo(
+    () =>
+      timeOverlaps(
+        dayEvents,
+        groups.flatMap((group) => group.tasks),
+        selectedDate,
+      ),
+    [dayEvents, groups, selectedDate],
   );
   const horizon = useMemo(
     () => sevenDayHorizon(snapshot, capacities, horizonStart),
@@ -182,8 +203,92 @@ export function PlanPage() {
             <span className="eyebrow">Daily agenda</span>
             <h2 id="focused-agenda-heading">{heading}</h2>
           </div>
-          <span>{groups.reduce((total, group) => total + group.tasks.length, 0)} tasks</span>
+          <span>
+            {dayEvents.length} events ·{' '}
+            {groups.reduce((total, group) => total + group.tasks.length, 0)} tasks
+          </span>
         </div>
+        <section className="agenda-group agenda-events" aria-labelledby="agenda-events-heading">
+          <h3 id="agenda-events-heading">Appointments</h3>
+          {dayEvents.length ? (
+            <>
+              {dayEvents.some((event) => event.allDay) ? (
+                <>
+                  <h4>All-day events</h4>
+                  <ul className="calendar-event-list">
+                    {dayEvents
+                      .filter((event) => event.allDay)
+                      .map((event) => (
+                        <li key={event.id}>
+                          <button type="button" onClick={() => setEditingEvent(event)}>
+                            <span className="event-kind">
+                              {event.allDay ? 'All day' : `${event.startTime}–${event.endTime}`}
+                            </span>
+                            <strong>{event.title}</strong>
+                            <span>
+                              {
+                                snapshot.calendars.find(
+                                  (calendar) => calendar.id === event.calendarId,
+                                )?.name
+                              }
+                            </span>
+                            {event.location ? <small>{event.location}</small> : null}
+                          </button>
+                        </li>
+                      ))}
+                  </ul>
+                </>
+              ) : null}
+              {dayEvents.some((event) => !event.allDay) ? (
+                <>
+                  <h4>Timed events</h4>
+                  <ul className="calendar-event-list">
+                    {dayEvents
+                      .filter((event) => !event.allDay)
+                      .map((event) => (
+                        <li key={event.id}>
+                          <button type="button" onClick={() => setEditingEvent(event)}>
+                            <span className="event-kind">
+                              {event.startTime}–{event.endTime}
+                            </span>
+                            <strong>{event.title}</strong>
+                            <span>
+                              {
+                                snapshot.calendars.find(
+                                  (calendar) => calendar.id === event.calendarId,
+                                )?.name
+                              }
+                            </span>
+                            {event.location ? <small>{event.location}</small> : null}
+                          </button>
+                        </li>
+                      ))}
+                  </ul>
+                </>
+              ) : null}
+            </>
+          ) : (
+            <p className="plan-empty">No appointments on this day.</p>
+          )}
+          {scheduledEventMinutes(dayEvents, selectedDate) > 0 ? (
+            <p className="event-duration-summary">
+              Scheduled events: {formatDuration(scheduledEventMinutes(dayEvents, selectedDate))}.
+              This is separate from your task-capacity setting.
+            </p>
+          ) : null}
+          {overlaps.length ? (
+            <div className="overlap-notice" role="status">
+              <strong>Time overlaps</strong>
+              <ul>
+                {overlaps.map(({ left, right }) => (
+                  <li key={`${left.kind}-${left.id}-${right.kind}-${right.id}`}>
+                    {left.label} overlaps {right.label}.
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </section>
         {groups.map((group) => (
           <section
             className="agenda-group"
@@ -362,6 +467,15 @@ export function PlanPage() {
           task={editingTask}
           snapshot={snapshot}
           onClose={() => setEditingTask(null)}
+        />
+      ) : null}
+      {editingEvent ? (
+        <EventEditorDialog
+          event={editingEvent}
+          calendars={snapshot.calendars}
+          initialDate={selectedDate}
+          onAnnounce={setAnnouncement}
+          onClose={() => setEditingEvent(null)}
         />
       ) : null}
       {reviewAction ? (

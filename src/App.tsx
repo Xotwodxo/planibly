@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { FoundationPage } from './pages/FoundationPage';
 import { HomePage } from './pages/HomePage';
+import { CalendarPage } from './pages/CalendarPage';
 import { ListsPage } from './pages/ListsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { PlanPage } from './pages/PlanPage';
@@ -13,16 +14,7 @@ export function App() {
       <Route element={<AppShell />}>
         <Route index element={<HomePage />} />
         <Route path="plan" element={<PlanPage />} />
-        <Route
-          path="calendar"
-          element={
-            <FoundationPage
-              eyebrow="Calendar"
-              title="See the shape of your days"
-              description="The internal calendar is intentionally deferred. No external or native calendar access is implied."
-            />
-          }
-        />
+        <Route path="calendar" element={<CalendarPage />} />
         <Route path="lists" element={<ListsPage />} />
         <Route
           path="insights"

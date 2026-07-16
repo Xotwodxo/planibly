@@ -8,6 +8,7 @@ import {
 } from './dashboardTypes';
 import {
   INBOX_LIST_ID,
+  DEFAULT_CALENDAR_ID,
   STARTER_AREAS,
   STARTER_DATA_VERSION,
   type AreaRecord,
@@ -15,6 +16,8 @@ import {
   type PlanListRecord,
   type PlannedPlacementRecord,
   type PlanningCapacityRecord,
+  type CalendarRecord,
+  type CalendarEventRecord,
   type TagRecord,
   type TaskRecord,
   type TaskRelationshipRecord,
@@ -23,7 +26,7 @@ import {
 } from './plannerTypes';
 
 export const DATABASE_NAME = 'planibly';
-export const DATABASE_SCHEMA_VERSION = 8;
+export const DATABASE_SCHEMA_VERSION = 9;
 
 export type MetadataRecord = {
   key: string;
@@ -275,6 +278,39 @@ export const schemaVersions: readonly SchemaVersion[] = [
       });
     },
   },
+  {
+    version: 9,
+    stores: {
+      metadata: '&key, updatedAt',
+      diagnostics: '&id, level, event, createdAt',
+      areas: '&id, order, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      lists:
+        '&id, areaId, [areaId+order], systemType, mode, archivedAt, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      tasks:
+        '&id, listId, [listId+order], status, plannedDate, deadlineDate, flexibleStartDate, flexibleEndDate, completedAt, completedClearedAt, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      taskSteps: '&id, taskId, [taskId+order], createdAt, modifiedAt, deletedAt, deletionGroupId',
+      tags: '&id, normalizedName, createdAt, modifiedAt, deletedAt',
+      taskTags:
+        '&id, taskId, tagId, &[taskId+tagId], createdAt, modifiedAt, deletedAt, deletionGroupId',
+      taskRelationships:
+        '&id, predecessorTaskId, successorTaskId, [predecessorTaskId+successorTaskId], createdAt, modifiedAt, deletedAt, deletionGroupId',
+      dashboardLayouts: '&id, builtInKey, isDefault, createdAt, modifiedAt',
+      plannedPlacements: '&id, &taskId, [localDate+group+order], localDate, group, modifiedAt',
+      planningCapacities: '&id, kind, weekday, localDate, modifiedAt',
+      calendars: '&id, order, isVisible, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      calendarEvents:
+        '&id, calendarId, startDate, endDate, [calendarId+startDate], deletedAt, deletionGroupId, modifiedAt',
+    },
+    migrate: async (transaction) => {
+      const metadata = transaction.table<MetadataRecord>('metadata');
+      const current = await metadata.get('schemaVersion');
+      await metadata.put({
+        key: 'schemaVersion',
+        value: '9',
+        updatedAt: current?.updatedAt ?? new Date(0).toISOString(),
+      });
+    },
+  },
 ];
 
 function migrationAgendaGroup(task: TaskRecord): AgendaGroup {
@@ -295,6 +331,8 @@ export class PlaniblyDatabase extends Dexie {
   dashboardLayouts!: EntityTable<DashboardLayoutRecord, 'id'>;
   plannedPlacements!: EntityTable<PlannedPlacementRecord, 'id'>;
   planningCapacities!: EntityTable<PlanningCapacityRecord, 'id'>;
+  calendars!: EntityTable<CalendarRecord, 'id'>;
+  calendarEvents!: EntityTable<CalendarEventRecord, 'id'>;
 
   public constructor(name = DATABASE_NAME) {
     super(name);
@@ -398,4 +436,28 @@ export async function initializeDatabase(db: PlaniblyDatabase = database): Promi
   ]);
   await initializeStarterData(db);
   await initializeDashboardStarterData(db);
+  await initializeCalendarStarterData(db);
+}
+
+export async function initializeCalendarStarterData(
+  db: PlaniblyDatabase = database,
+): Promise<void> {
+  await db.transaction('rw', db.metadata, db.calendars, async () => {
+    const marker = await db.metadata.get('calendarStarterDataVersion');
+    if (marker) return;
+    const now = new Date().toISOString();
+    if (!(await db.calendars.get(DEFAULT_CALENDAR_ID))) {
+      await db.calendars.add({
+        id: DEFAULT_CALENDAR_ID,
+        name: 'Personal',
+        color: '#5B67C8',
+        order: 0,
+        isVisible: true,
+        isProtected: true,
+        createdAt: now,
+        modifiedAt: now,
+      });
+    }
+    await db.metadata.put({ key: 'calendarStarterDataVersion', value: '1', updatedAt: now });
+  });
 }

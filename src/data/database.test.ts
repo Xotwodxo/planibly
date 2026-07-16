@@ -4,10 +4,12 @@ import {
   DATABASE_SCHEMA_VERSION,
   initializeDatabase,
   initializeDashboardStarterData,
+  initializeCalendarStarterData,
   initializeStarterData,
   PlaniblyDatabase,
+  schemaVersions,
 } from './database';
-import { INBOX_LIST_ID, STARTER_AREAS } from './plannerTypes';
+import { DEFAULT_CALENDAR_ID, INBOX_LIST_ID, STARTER_AREAS } from './plannerTypes';
 
 describe('PlaniblyDatabase', () => {
   it('opens at the declared version and writes schema metadata', async () => {
@@ -21,6 +23,8 @@ describe('PlaniblyDatabase', () => {
     });
     expect(database.tables.map((table) => table.name).sort()).toEqual([
       'areas',
+      'calendarEvents',
+      'calendars',
       'dashboardLayouts',
       'diagnostics',
       'lists',
@@ -152,7 +156,7 @@ describe('PlaniblyDatabase', () => {
     expect(await upgraded.tags.count()).toBe(0);
     expect(await upgraded.taskTags.count()).toBe(0);
     expect(await upgraded.taskRelationships.count()).toBe(0);
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '8' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '9' });
 
     upgraded.close();
     await upgraded.delete();
@@ -204,7 +208,7 @@ describe('PlaniblyDatabase', () => {
       createdAt: timestamp,
       modifiedAt: timestamp,
     });
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '8' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '9' });
 
     upgraded.close();
     await upgraded.delete();
@@ -250,7 +254,7 @@ describe('PlaniblyDatabase', () => {
     expect(task?.deadlineDate).toBeUndefined();
     expect(task?.flexibleStartDate).toBeUndefined();
     expect(task?.exactStartTime).toBeUndefined();
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '8' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '9' });
 
     expect(task?.completedAt).toBeUndefined();
 
@@ -390,7 +394,7 @@ describe('PlaniblyDatabase', () => {
     });
     expect(await upgraded.plannedPlacements.get('unplanned-v7')).toBeUndefined();
     expect(await upgraded.planningCapacities.count()).toBe(0);
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '8' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '9' });
 
     upgraded.close();
     await upgraded.delete();
@@ -433,5 +437,60 @@ describe('PlaniblyDatabase', () => {
 
     database.close();
     await database.delete();
+  });
+
+  it('creates the protected default calendar idempotently without recreating deleted starter data', async () => {
+    const database = new PlaniblyDatabase(`planibly-calendar-starter-${crypto.randomUUID()}`);
+    await initializeDatabase(database);
+    await expect(database.calendars.get(DEFAULT_CALENDAR_ID)).resolves.toMatchObject({
+      name: 'Personal',
+      isProtected: true,
+    });
+    await database.calendars.delete(DEFAULT_CALENDAR_ID);
+    await initializeCalendarStarterData(database);
+    expect(await database.calendars.count()).toBe(0);
+    database.close();
+    await database.delete();
+  });
+
+  it('upgrades a Phase 2C v8 database without changing capacity or placement records', async () => {
+    const name = `planibly-v8-calendar-${crypto.randomUUID()}`;
+    const legacy = new Dexie(name);
+    legacy.version(8).stores(schemaVersions.find((schema) => schema.version === 8)!.stores);
+    await legacy.open();
+    await legacy
+      .table('metadata')
+      .put({ key: 'schemaVersion', value: '8', updatedAt: '2026-01-01T00:00:00.000Z' });
+    await legacy.table('planningCapacities').put({
+      id: 'capacity',
+      kind: 'date',
+      localDate: '2026-07-16',
+      minutes: 300,
+      createdAt: 'x',
+      modifiedAt: 'x',
+    });
+    await legacy.table('plannedPlacements').put({
+      id: 'placement',
+      taskId: 'task',
+      localDate: '2026-07-16',
+      group: 'anyTime',
+      order: 0,
+      source: 'plannedDate',
+      createdAt: 'x',
+      modifiedAt: 'x',
+    });
+    legacy.close();
+    const upgraded = new PlaniblyDatabase(name);
+    await initializeDatabase(upgraded);
+    await expect(upgraded.planningCapacities.get('capacity')).resolves.toMatchObject({
+      minutes: 300,
+    });
+    await expect(upgraded.plannedPlacements.get('placement')).resolves.toMatchObject({
+      taskId: 'task',
+    });
+    expect(await upgraded.calendars.count()).toBe(1);
+    expect(await upgraded.calendarEvents.count()).toBe(0);
+    upgraded.close();
+    await upgraded.delete();
   });
 });

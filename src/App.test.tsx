@@ -32,7 +32,6 @@ describe('application shell', () => {
 
     await screen.findByRole('heading', { name: 'A calm view of what matters' });
     await user.click(screen.getAllByRole('link', { name: 'Calendar' })[0]!);
-    expect(screen.getByRole('heading', { name: 'See the shape of your days' })).toBeVisible();
-    expect(screen.getByText('Outside Phase 0')).toBeVisible();
+    expect(await screen.findByRole('heading', { name: 'Appointments, kept local' })).toBeVisible();
   });
 });

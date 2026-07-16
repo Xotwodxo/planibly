@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 
 import { plannerRepository } from '../data/plannerRepository';
+import { calendarRepository } from '../data/calendarRepository';
 import type { DeletionReceipt } from '../data/plannerTypes';
 import { OPEN_QUICK_ADD_EVENT, SHOW_UNDO_EVENT } from '../features/planner/plannerEvents';
 import { QuickAddDialog } from '../features/planner/QuickAddDialog';
@@ -51,7 +52,11 @@ export function AppShell() {
   async function undoDeletion() {
     if (!undoReceipt) return;
     try {
-      await plannerRepository.restoreDeletionGroup(undoReceipt.groupId, undoReceipt);
+      if (undoReceipt.kind === 'calendar' || undoReceipt.kind === 'event') {
+        await calendarRepository.restoreDeletionGroup(undoReceipt.groupId, undoReceipt);
+      } else {
+        await plannerRepository.restoreDeletionGroup(undoReceipt.groupId, undoReceipt);
+      }
       setUndoReceipt(null);
       setUndoError(null);
     } catch (caughtError) {

@@ -11,7 +11,7 @@ import {
   dashboardTaskLimit,
 } from '../../data/dashboard';
 import type { DashboardCardConfig } from '../../data/dashboardTypes';
-import type { PlannerSnapshot, TaskRecord } from '../../data/plannerTypes';
+import type { CalendarEventRecord, PlannerSnapshot, TaskRecord } from '../../data/plannerTypes';
 import { openQuickAdd } from '../planner/plannerEvents';
 import { TaskPlanningSummary } from '../planner/TaskPlanningSummary';
 
@@ -21,14 +21,23 @@ type DashboardCardProps = {
   today: string;
   onComplete: (task: TaskRecord, completed: boolean) => Promise<void>;
   onEdit: (task: TaskRecord) => void;
+  onEditEvent: (event: CalendarEventRecord) => void;
 };
 
-export function DashboardCard({ config, snapshot, today, onComplete, onEdit }: DashboardCardProps) {
+export function DashboardCard({
+  config,
+  snapshot,
+  today,
+  onComplete,
+  onEdit,
+  onEditEvent,
+}: DashboardCardProps) {
   const headingId = useId();
   const data = dashboardCardDataFromSnapshot(snapshot, config.type, today);
   const limit = dashboardTaskLimit(config.size);
   const tasks = data.tasks.slice(0, limit);
   const projectActions = data.projectNextActions.slice(0, limit);
+  const events = data.events.slice(0, limit);
   const link = dashboardCardLink(config.type);
   const label = DASHBOARD_CARD_LABELS[config.type];
 
@@ -54,20 +63,46 @@ export function DashboardCard({ config, snapshot, today, onComplete, onEdit }: D
             Add a task
           </Button>
         </div>
-      ) : tasks.length > 0 ? (
-        <ul className="dashboard-task-list">
-          {tasks.map((task) => (
-            <DashboardTask
-              key={task.id}
-              task={task}
-              snapshot={snapshot}
-              today={today}
-              completedCard={config.type === 'recentlyCompleted'}
-              onComplete={onComplete}
-              onEdit={onEdit}
-            />
-          ))}
-        </ul>
+      ) : tasks.length > 0 || events.length > 0 ? (
+        <>
+          {events.length ? (
+            <ul className="dashboard-task-list dashboard-event-list">
+              {events.map((event) => (
+                <li key={event.id}>
+                  <span className="dashboard-event-mark" aria-hidden="true">
+                    ●
+                  </span>
+                  <div>
+                    <button type="button" className="task-title" onClick={() => onEditEvent(event)}>
+                      {event.title}
+                    </button>
+                    <span className="task-location">
+                      Appointment ·{' '}
+                      {event.allDay ? 'All day' : `${event.startTime}–${event.endTime}`} ·{' '}
+                      {
+                        snapshot.calendars.find((calendar) => calendar.id === event.calendarId)
+                          ?.name
+                      }
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <ul className="dashboard-task-list">
+            {tasks.map((task) => (
+              <DashboardTask
+                key={task.id}
+                task={task}
+                snapshot={snapshot}
+                today={today}
+                completedCard={config.type === 'recentlyCompleted'}
+                onComplete={onComplete}
+                onEdit={onEdit}
+              />
+            ))}
+          </ul>
+        </>
       ) : projectActions.length > 0 ? (
         <ul className="dashboard-task-list">
           {projectActions.map(({ project, task }) => (

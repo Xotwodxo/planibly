@@ -12,7 +12,13 @@ import {
   type DashboardSuggestionType,
 } from './dashboardTypes';
 import { smartTasksFromSnapshot } from './planning';
-import type { PlanListRecord, PlannerSnapshot, TaskRecord } from './plannerTypes';
+import { eventsForDate, visibleCalendarEvents } from './calendar';
+import type {
+  CalendarEventRecord,
+  PlanListRecord,
+  PlannerSnapshot,
+  TaskRecord,
+} from './plannerTypes';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const BUILT_IN_KEYS = ['overview', 'focus', 'planning'] as const;
@@ -28,6 +34,7 @@ export type ProjectNextAction = {
 export type DashboardCardData = {
   tasks: TaskRecord[];
   projectNextActions: ProjectNextAction[];
+  events: CalendarEventRecord[];
   totalCount: number;
 };
 
@@ -189,9 +196,11 @@ export function dashboardCardDataFromSnapshot(
 ): DashboardCardData {
   let tasks: TaskRecord[] = [];
   let projectNextActions: ProjectNextAction[] = [];
+  let events: CalendarEventRecord[] = [];
   switch (type) {
     case 'today':
       tasks = smartTasksFromSnapshot(snapshot, 'today', today);
+      events = eventsForDate(visibleCalendarEvents(snapshot), today);
       break;
     case 'overdue':
       tasks = smartTasksFromSnapshot(snapshot, 'overdue', today);
@@ -219,7 +228,12 @@ export function dashboardCardDataFromSnapshot(
     case 'quickAdd':
       break;
   }
-  return { tasks, projectNextActions, totalCount: tasks.length || projectNextActions.length };
+  return {
+    tasks,
+    projectNextActions,
+    events,
+    totalCount: tasks.length + events.length || projectNextActions.length,
+  };
 }
 
 export function dashboardTaskLimit(size: DashboardCardSize): number {

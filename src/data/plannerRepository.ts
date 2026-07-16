@@ -1,5 +1,6 @@
 import { database, type PlaniblyDatabase } from './database';
 import { agendaGroupForTask } from './agenda';
+import { isValidCalendarEventRecord } from './calendar';
 import {
   localDateFromDate,
   planningOverviewFromSnapshot,
@@ -118,17 +119,29 @@ export class PlannerRepository {
   }
 
   public async getSnapshot(): Promise<PlannerSnapshot> {
-    const [areas, lists, tasks, taskSteps, tags, taskTags, taskRelationships, plannedPlacements] =
-      await Promise.all([
-        this.db.areas.toArray(),
-        this.db.lists.toArray(),
-        this.db.tasks.toArray(),
-        this.db.taskSteps.toArray(),
-        this.db.tags.toArray(),
-        this.db.taskTags.toArray(),
-        this.db.taskRelationships.toArray(),
-        this.db.plannedPlacements.toArray(),
-      ]);
+    const [
+      areas,
+      lists,
+      tasks,
+      taskSteps,
+      tags,
+      taskTags,
+      taskRelationships,
+      plannedPlacements,
+      calendars,
+      calendarEvents,
+    ] = await Promise.all([
+      this.db.areas.toArray(),
+      this.db.lists.toArray(),
+      this.db.tasks.toArray(),
+      this.db.taskSteps.toArray(),
+      this.db.tags.toArray(),
+      this.db.taskTags.toArray(),
+      this.db.taskRelationships.toArray(),
+      this.db.plannedPlacements.toArray(),
+      this.db.calendars.toArray(),
+      this.db.calendarEvents.toArray(),
+    ]);
     const activeTasks = tasks.filter(active).sort(byOrder);
     const activeTaskIds = new Set(activeTasks.map((task) => task.id));
     const activeTags = tags.filter(active);
@@ -170,6 +183,13 @@ export class PlannerRepository {
       plannedPlacements: plannedPlacements.filter((placement) =>
         activeTaskIds.has(placement.taskId),
       ),
+      calendars: calendars.filter(active).sort(byOrder),
+      calendarEvents: calendarEvents.filter(
+        (event) =>
+          active(event) &&
+          isValidCalendarEventRecord(event) &&
+          calendars.some((calendar) => active(calendar) && calendar.id === event.calendarId),
+      ),
       blockedByTaskId,
       projectProgressByListId: Object.fromEntries(
         lists
@@ -199,6 +219,12 @@ export class PlannerRepository {
       deletedLists: lists.filter((list) => !active(list)).sort(byDeletedAtDescending),
       deletedTasks: tasks.filter((task) => !active(task)).sort(byDeletedAtDescending),
       deletedSteps: taskSteps.filter((step) => !active(step)).sort(byDeletedAtDescending),
+      deletedCalendars: calendars
+        .filter((calendar) => !active(calendar))
+        .sort(byDeletedAtDescending),
+      deletedCalendarEvents: calendarEvents
+        .filter((event) => !active(event))
+        .sort(byDeletedAtDescending),
     };
   }
 

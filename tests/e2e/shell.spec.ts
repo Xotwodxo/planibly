@@ -89,6 +89,60 @@ test('uses bottom navigation on a mobile viewport', async ({ page }, testInfo) =
   await expect(page.getByRole('heading', { name: 'Your lists' })).toBeVisible();
 });
 
+test('persists a mobile calendar event through reload and offline reopening', async ({
+  page,
+  context,
+}, testInfo) => {
+  test.skip(!testInfo.project.name.includes('mobile'), 'Mobile-only Phase 3A flow');
+  await page.goto(githubPagesBasePath);
+  await page.locator('.bottom-navigation').getByRole('link', { name: 'Calendar' }).click();
+  await expect(page.getByRole('heading', { name: 'Appointments, kept local' })).toBeVisible();
+  await page.getByRole('button', { name: 'Create event' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Create event' });
+  await dialog.getByLabel('Title').fill('Offline appointment');
+  await dialog.getByLabel('All day').check();
+  await dialog.getByRole('button', { name: 'Save event' }).click();
+  await expect(page.getByRole('button', { name: /Offline appointment/ }).first()).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('button', { name: /Offline appointment/ }).first()).toBeVisible();
+  await context.setOffline(true);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Appointments, kept local' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Offline appointment/ }).first()).toBeVisible();
+  await context.setOffline(false);
+});
+
+test('keeps the calendar month and event dialog contained at large text', async ({
+  page,
+}, testInfo) => {
+  test.skip(!testInfo.project.name.includes('mobile'), 'Mobile-only Phase 3A responsive check');
+  await page.goto('/planibly/calendar');
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '200%';
+  });
+  await expect(page.getByRole('grid')).toBeVisible();
+  const overflow = await page.evaluate(() => {
+    const clientWidth = document.documentElement.clientWidth;
+    return {
+      clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+      offenders: Array.from(document.querySelectorAll<HTMLElement>('body *'))
+        .filter((element) => {
+          const rectangle = element.getBoundingClientRect();
+          return rectangle.right > clientWidth + 1 || rectangle.left < -1;
+        })
+        .map((element) => `${element.tagName.toLowerCase()}.${element.className}`)
+        .slice(0, 10),
+    };
+  });
+  expect(overflow.offenders, JSON.stringify(overflow)).toEqual([]);
+  await page.getByRole('button', { name: 'Create event' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Create event' });
+  await expect(dialog).toBeVisible();
+  const box = await dialog.boundingBox();
+  expect(box?.height ?? 0).toBeLessThanOrEqual(page.viewportSize()!.height);
+});
+
 test('persists the primary mobile organisation flow through reload and offline use', async ({
   page,
   context,
