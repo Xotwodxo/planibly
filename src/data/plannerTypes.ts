@@ -53,6 +53,29 @@ export type TaskStatus = 'inbox' | 'available' | 'completed';
 
 export type TaskTimeWindow = 'morning' | 'afternoon' | 'evening';
 
+export type AgendaGroup = 'exact' | TaskTimeWindow | 'anyTime';
+
+export type PlannedPlacementRecord = {
+  id: string;
+  taskId: string;
+  localDate: string;
+  group: AgendaGroup;
+  order: number;
+  source: 'plannedDate' | 'flexibleRange';
+  createdAt: string;
+  modifiedAt: string;
+};
+
+export type PlanningCapacityRecord = {
+  id: string;
+  kind: 'weekday' | 'date';
+  weekday?: number;
+  localDate?: string;
+  minutes: number | null;
+  createdAt: string;
+  modifiedAt: string;
+};
+
 export type TaskPlanning = {
   plannedDate?: string;
   deadlineDate?: string;
@@ -187,6 +210,7 @@ export type PlannerSnapshot = {
   tags: TagRecord[];
   taskTags: TaskTagRecord[];
   taskRelationships: TaskRelationshipRecord[];
+  plannedPlacements: PlannedPlacementRecord[];
   blockedByTaskId: Record<string, string[]>;
   projectProgressByListId: Record<string, ProjectProgress>;
   deletedAreas: AreaRecord[];

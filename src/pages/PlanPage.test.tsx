@@ -129,7 +129,7 @@ describe('Phase 2A planning interface', () => {
     await user.click(within(dialog).getByRole('radio', { name: 'Today' }));
     await user.click(within(dialog).getByRole('button', { name: /^Save$/ }));
 
-    expect(await screen.findByText('Act today')).toBeVisible();
+    expect((await screen.findAllByText('Act today')).length).toBeGreaterThan(0);
     await expect(
       database.tasks.filter((task) => task.title === 'Act today').first(),
     ).resolves.toMatchObject({
@@ -160,5 +160,70 @@ describe('Phase 2A planning interface', () => {
     await user.click(screen.getByRole('button', { name: 'Overdue' }));
     expect(await screen.findByRole('button', { name: 'Genuine overdue item' })).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Past intention' })).toBeNull();
+  });
+
+  it('edits capacity and explicitly reviews an earlier plan', async () => {
+    const today = localDateFromDate(new Date());
+    const earlier = await plannerRepository.createTask('Bring forward', undefined, {
+      plannedDate: addCalendarDays(today, -1),
+      estimatedDurationMinutes: 30,
+    });
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/plan']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole('heading', { name: 'Previously planned' });
+    await user.click(screen.getByText('Adjust capacity'));
+    const weekday = screen.getByRole('group', { name: 'Weekday default' });
+    await user.clear(within(weekday).getByLabelText('Minutes'));
+    await user.type(within(weekday).getByLabelText('Minutes'), '120');
+    await user.click(within(weekday).getByRole('button', { name: 'Save default' }));
+    await waitFor(async () => expect(await database.planningCapacities.count()).toBe(1));
+    await screen.findByText('2 hrs available');
+
+    const review = screen.getByRole('region', { name: 'Previously planned' });
+    await user.click(within(review).getByRole('checkbox', { name: 'Bring forward' }));
+    await user.click(within(review).getByRole('button', { name: 'Move to today' }));
+    const dialog = screen.getByRole('dialog', { name: 'Review earlier plans' });
+    expect(within(dialog).getByText(/Nothing happens until you confirm/)).toBeVisible();
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+    await waitFor(async () =>
+      expect(await database.tasks.get(earlier.id)).toMatchObject({ plannedDate: today }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole('region', { name: 'Previously planned' })).toBeNull(),
+    );
+  });
+
+  it('places a flexible task deliberately while preserving its range', async () => {
+    const today = localDateFromDate(new Date());
+    const task = await plannerRepository.createTask('Flexible placement', undefined, {
+      flexibleStartDate: today,
+      flexibleEndDate: addCalendarDays(today, 2),
+    });
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/plan']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    const source = await screen.findByRole('region', { name: 'Flexible range tasks' });
+    await user.click(within(source).getByRole('button', { name: 'Plan' }));
+    await waitFor(async () =>
+      expect(await database.plannedPlacements.get(task.id)).toMatchObject({
+        localDate: today,
+        source: 'flexibleRange',
+      }),
+    );
+    expect(await database.tasks.get(task.id)).toMatchObject({
+      flexibleStartDate: today,
+      flexibleEndDate: addCalendarDays(today, 2),
+    });
+    expect((await database.tasks.get(task.id))?.plannedDate).toBeUndefined();
+    await waitFor(() => expect(within(source).queryByRole('button', { name: 'Plan' })).toBeNull());
   });
 });

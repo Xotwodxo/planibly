@@ -49,6 +49,7 @@ function snapshot(tasks: TaskRecord[] = []): PlannerSnapshot {
     tags: [],
     taskTags: [],
     taskRelationships: [],
+    plannedPlacements: [],
     blockedByTaskId: {},
     projectProgressByListId: {},
     deletedAreas: [],

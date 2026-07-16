@@ -25,6 +25,8 @@ describe('PlaniblyDatabase', () => {
       'diagnostics',
       'lists',
       'metadata',
+      'plannedPlacements',
+      'planningCapacities',
       'tags',
       'taskRelationships',
       'taskSteps',
@@ -150,7 +152,7 @@ describe('PlaniblyDatabase', () => {
     expect(await upgraded.tags.count()).toBe(0);
     expect(await upgraded.taskTags.count()).toBe(0);
     expect(await upgraded.taskRelationships.count()).toBe(0);
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '7' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '8' });
 
     upgraded.close();
     await upgraded.delete();
@@ -202,7 +204,7 @@ describe('PlaniblyDatabase', () => {
       createdAt: timestamp,
       modifiedAt: timestamp,
     });
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '7' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '8' });
 
     upgraded.close();
     await upgraded.delete();
@@ -248,7 +250,7 @@ describe('PlaniblyDatabase', () => {
     expect(task?.deadlineDate).toBeUndefined();
     expect(task?.flexibleStartDate).toBeUndefined();
     expect(task?.exactStartTime).toBeUndefined();
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '7' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '8' });
 
     expect(task?.completedAt).toBeUndefined();
 
@@ -311,6 +313,84 @@ describe('PlaniblyDatabase', () => {
     expect(
       (await upgraded.dashboardLayouts.toArray()).filter((layout) => layout.isDefault),
     ).toHaveLength(1);
+
+    upgraded.close();
+    await upgraded.delete();
+  });
+
+  it('upgrades Phase 2B planned tasks to deterministic Phase 2C agenda placements', async () => {
+    const name = `planibly-phase-2c-upgrade-${crypto.randomUUID()}`;
+    const legacy = new Dexie(name);
+    legacy.version(7).stores({
+      metadata: '&key, updatedAt',
+      diagnostics: '&id, level, event, createdAt',
+      areas: '&id, order, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      lists:
+        '&id, areaId, [areaId+order], systemType, mode, archivedAt, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      tasks:
+        '&id, listId, [listId+order], status, plannedDate, deadlineDate, flexibleStartDate, flexibleEndDate, completedAt, completedClearedAt, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      taskSteps: '&id, taskId, [taskId+order], createdAt, modifiedAt, deletedAt, deletionGroupId',
+      tags: '&id, normalizedName, createdAt, modifiedAt, deletedAt',
+      taskTags:
+        '&id, taskId, tagId, &[taskId+tagId], createdAt, modifiedAt, deletedAt, deletionGroupId',
+      taskRelationships:
+        '&id, predecessorTaskId, successorTaskId, [predecessorTaskId+successorTaskId], createdAt, modifiedAt, deletedAt, deletionGroupId',
+      dashboardLayouts: '&id, builtInKey, isDefault, createdAt, modifiedAt',
+    });
+    await legacy.open();
+    const timestamp = '2026-07-01T09:00:00.000Z';
+    await legacy.table('tasks').bulkAdd([
+      {
+        id: 'later-v7',
+        title: 'Later',
+        listId: INBOX_LIST_ID,
+        status: 'inbox',
+        plannedDate: '2026-07-02',
+        timeWindow: 'morning',
+        order: 1,
+        createdAt: timestamp,
+        modifiedAt: timestamp,
+      },
+      {
+        id: 'earlier-v7',
+        title: 'Earlier',
+        listId: INBOX_LIST_ID,
+        status: 'inbox',
+        plannedDate: '2026-07-02',
+        exactStartTime: '08:30',
+        order: 0,
+        createdAt: timestamp,
+        modifiedAt: timestamp,
+      },
+      {
+        id: 'unplanned-v7',
+        title: 'Unplanned',
+        listId: INBOX_LIST_ID,
+        status: 'inbox',
+        order: 2,
+        createdAt: timestamp,
+        modifiedAt: timestamp,
+      },
+    ]);
+    legacy.close();
+
+    const upgraded = new PlaniblyDatabase(name);
+    await initializeDatabase(upgraded);
+
+    await expect(upgraded.plannedPlacements.get('earlier-v7')).resolves.toMatchObject({
+      taskId: 'earlier-v7',
+      localDate: '2026-07-02',
+      group: 'exact',
+      source: 'plannedDate',
+      order: 0,
+    });
+    await expect(upgraded.plannedPlacements.get('later-v7')).resolves.toMatchObject({
+      group: 'morning',
+      order: 0,
+    });
+    expect(await upgraded.plannedPlacements.get('unplanned-v7')).toBeUndefined();
+    expect(await upgraded.planningCapacities.count()).toBe(0);
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '8' });
 
     upgraded.close();
     await upgraded.delete();

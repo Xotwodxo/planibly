@@ -1,4 +1,5 @@
 import { database, type PlaniblyDatabase } from './database';
+import { agendaGroupForTask } from './agenda';
 import {
   localDateFromDate,
   planningOverviewFromSnapshot,
@@ -14,6 +15,7 @@ import {
   type PlanListRecord,
   type PlannerSnapshot,
   type PlanningOverview,
+  type PlannedPlacementRecord,
   type SearchFilters,
   type SearchResult,
   type SmartListKey,
@@ -116,15 +118,17 @@ export class PlannerRepository {
   }
 
   public async getSnapshot(): Promise<PlannerSnapshot> {
-    const [areas, lists, tasks, taskSteps, tags, taskTags, taskRelationships] = await Promise.all([
-      this.db.areas.toArray(),
-      this.db.lists.toArray(),
-      this.db.tasks.toArray(),
-      this.db.taskSteps.toArray(),
-      this.db.tags.toArray(),
-      this.db.taskTags.toArray(),
-      this.db.taskRelationships.toArray(),
-    ]);
+    const [areas, lists, tasks, taskSteps, tags, taskTags, taskRelationships, plannedPlacements] =
+      await Promise.all([
+        this.db.areas.toArray(),
+        this.db.lists.toArray(),
+        this.db.tasks.toArray(),
+        this.db.taskSteps.toArray(),
+        this.db.tags.toArray(),
+        this.db.taskTags.toArray(),
+        this.db.taskRelationships.toArray(),
+        this.db.plannedPlacements.toArray(),
+      ]);
     const activeTasks = tasks.filter(active).sort(byOrder);
     const activeTaskIds = new Set(activeTasks.map((task) => task.id));
     const activeTags = tags.filter(active);
@@ -163,6 +167,9 @@ export class PlannerRepository {
           activeTagIds.has(assignment.tagId),
       ),
       taskRelationships: activeRelationships,
+      plannedPlacements: plannedPlacements.filter((placement) =>
+        activeTaskIds.has(placement.taskId),
+      ),
       blockedByTaskId,
       projectProgressByListId: Object.fromEntries(
         lists
@@ -241,6 +248,7 @@ export class PlannerRepository {
         this.db.taskSteps,
         this.db.taskTags,
         this.db.taskRelationships,
+        this.db.plannedPlacements,
       ],
       async () => {
         const lists = (await this.db.lists.where('areaId').equals(id).toArray()).filter(active);
@@ -467,7 +475,12 @@ export class PlannerRepository {
       modifiedAt: now,
       ...validatePlanning(planning),
     };
-    await this.db.tasks.add(record);
+    await this.db.transaction('rw', this.db.tasks, this.db.plannedPlacements, async () => {
+      await this.db.tasks.add(record);
+      if (record.plannedDate) {
+        await this.db.plannedPlacements.add(await this.placementForTask(record));
+      }
+    });
     this.notify();
     return record;
   }
@@ -490,9 +503,11 @@ export class PlannerRepository {
   }
 
   public async updateTaskPlanning(id: string, planning: TaskPlanning): Promise<void> {
-    await this.requireActiveTask(id);
+    const task = await this.requireActiveTask(id);
     const validated = validatePlanning(planning);
-    await this.db.tasks.update(id, {
+    const now = this.now();
+    const updated: TaskRecord = {
+      ...task,
       plannedDate: undefined,
       deadlineDate: undefined,
       flexibleStartDate: undefined,
@@ -501,7 +516,28 @@ export class PlannerRepository {
       exactStartTime: undefined,
       estimatedDurationMinutes: undefined,
       ...validated,
-      modifiedAt: this.now(),
+      modifiedAt: now,
+    };
+    await this.db.transaction('rw', this.db.tasks, this.db.plannedPlacements, async () => {
+      await this.db.tasks.put(updated);
+      const existing = await this.db.plannedPlacements.where('taskId').equals(id).first();
+      if (updated.plannedDate) {
+        await this.db.plannedPlacements.put(await this.placementForTask(updated, existing));
+      } else if (
+        existing?.source === 'flexibleRange' &&
+        updated.flexibleStartDate &&
+        updated.flexibleEndDate &&
+        existing.localDate >= updated.flexibleStartDate &&
+        existing.localDate <= updated.flexibleEndDate
+      ) {
+        await this.db.plannedPlacements.put({
+          ...existing,
+          group: agendaGroupForTask(updated),
+          modifiedAt: now,
+        });
+      } else if (existing) {
+        await this.db.plannedPlacements.delete(existing.id);
+      }
     });
     this.notify();
   }
@@ -890,6 +926,7 @@ export class PlannerRepository {
         this.db.tags,
         this.db.taskTags,
         this.db.taskRelationships,
+        this.db.plannedPlacements,
       ],
       async () => {
         const parentLabels = await this.getDeletedParentLabels(kind, id);
@@ -933,6 +970,7 @@ export class PlannerRepository {
         this.db.tags,
         this.db.taskTags,
         this.db.taskRelationships,
+        this.db.plannedPlacements,
       ],
       async () => {
         if (receipt?.operation === 'archive') {
@@ -992,6 +1030,7 @@ export class PlannerRepository {
         this.db.taskSteps,
         this.db.taskTags,
         this.db.taskRelationships,
+        this.db.plannedPlacements,
       ],
       async () => {
         const areaIds = new Set<string>();
@@ -1053,6 +1092,7 @@ export class PlannerRepository {
         this.db.tags,
         this.db.taskTags,
         this.db.taskRelationships,
+        this.db.plannedPlacements,
       ],
       async () => {
         await this.purgeIds(
@@ -1212,10 +1252,39 @@ export class PlannerRepository {
         )
         .map((relationship) => this.db.taskRelationships.delete(relationship.id)),
       this.db.taskSteps.bulkDelete([...stepIds]),
+      this.db.plannedPlacements
+        .where('taskId')
+        .anyOf([...taskIds])
+        .delete(),
       this.db.tasks.bulkDelete([...taskIds]),
       this.db.lists.bulkDelete([...listIds]),
       this.db.areas.bulkDelete([...areaIds]),
     ]);
+  }
+
+  private async placementForTask(
+    task: TaskRecord,
+    existing?: PlannedPlacementRecord,
+  ): Promise<PlannedPlacementRecord> {
+    const plannedDate = task.plannedDate;
+    if (!plannedDate) throw new Error('A planned placement requires a date.');
+    const group = agendaGroupForTask(task);
+    const preserveOrder = existing?.localDate === plannedDate && existing.group === group;
+    const siblings = preserveOrder
+      ? []
+      : (await this.db.plannedPlacements.where('localDate').equals(plannedDate).toArray()).filter(
+          (placement) => placement.group === group && placement.taskId !== task.id,
+        );
+    return {
+      id: existing?.id ?? task.id,
+      taskId: task.id,
+      localDate: plannedDate,
+      group,
+      order: preserveOrder ? existing.order : siblings.length,
+      source: 'plannedDate',
+      createdAt: existing?.createdAt ?? task.createdAt,
+      modifiedAt: task.modifiedAt,
+    };
   }
 
   private async getBlockingTaskIds(successorTaskId: string): Promise<string[]> {

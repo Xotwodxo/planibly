@@ -11,7 +11,10 @@ import {
   STARTER_AREAS,
   STARTER_DATA_VERSION,
   type AreaRecord,
+  type AgendaGroup,
   type PlanListRecord,
+  type PlannedPlacementRecord,
+  type PlanningCapacityRecord,
   type TagRecord,
   type TaskRecord,
   type TaskRelationshipRecord,
@@ -20,7 +23,7 @@ import {
 } from './plannerTypes';
 
 export const DATABASE_NAME = 'planibly';
-export const DATABASE_SCHEMA_VERSION = 7;
+export const DATABASE_SCHEMA_VERSION = 8;
 
 export type MetadataRecord = {
   key: string;
@@ -212,7 +215,72 @@ export const schemaVersions: readonly SchemaVersion[] = [
       });
     },
   },
+  {
+    version: 8,
+    stores: {
+      metadata: '&key, updatedAt',
+      diagnostics: '&id, level, event, createdAt',
+      areas: '&id, order, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      lists:
+        '&id, areaId, [areaId+order], systemType, mode, archivedAt, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      tasks:
+        '&id, listId, [listId+order], status, plannedDate, deadlineDate, flexibleStartDate, flexibleEndDate, completedAt, completedClearedAt, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      taskSteps: '&id, taskId, [taskId+order], createdAt, modifiedAt, deletedAt, deletionGroupId',
+      tags: '&id, normalizedName, createdAt, modifiedAt, deletedAt',
+      taskTags:
+        '&id, taskId, tagId, &[taskId+tagId], createdAt, modifiedAt, deletedAt, deletionGroupId',
+      taskRelationships:
+        '&id, predecessorTaskId, successorTaskId, [predecessorTaskId+successorTaskId], createdAt, modifiedAt, deletedAt, deletionGroupId',
+      dashboardLayouts: '&id, builtInKey, isDefault, createdAt, modifiedAt',
+      plannedPlacements: '&id, &taskId, [localDate+group+order], localDate, group, modifiedAt',
+      planningCapacities: '&id, kind, weekday, localDate, modifiedAt',
+    },
+    migrate: async (transaction) => {
+      const metadata = transaction.table<MetadataRecord>('metadata');
+      const tasks = transaction.table<TaskRecord>('tasks');
+      const placements = transaction.table<PlannedPlacementRecord>('plannedPlacements');
+      const current = await metadata.get('schemaVersion');
+      const plannedTasks = (await tasks.toArray())
+        .filter((task) => task.plannedDate !== undefined)
+        .sort((left, right) => {
+          const date = left.plannedDate!.localeCompare(right.plannedDate!);
+          if (date !== 0) return date;
+          const group = migrationAgendaGroup(left).localeCompare(migrationAgendaGroup(right));
+          if (group !== 0) return group;
+          const time = (left.exactStartTime ?? '').localeCompare(right.exactStartTime ?? '');
+          return time || left.order - right.order || left.id.localeCompare(right.id);
+        });
+      const nextOrder = new Map<string, number>();
+      const records = plannedTasks.map((task) => {
+        const group = migrationAgendaGroup(task);
+        const key = `${task.plannedDate!}|${group}`;
+        const order = nextOrder.get(key) ?? 0;
+        nextOrder.set(key, order + 1);
+        return {
+          id: task.id,
+          taskId: task.id,
+          localDate: task.plannedDate!,
+          group,
+          order,
+          source: 'plannedDate' as const,
+          createdAt: task.createdAt,
+          modifiedAt: task.modifiedAt,
+        };
+      });
+      if (records.length > 0) await placements.bulkAdd(records);
+      await metadata.put({
+        key: 'schemaVersion',
+        value: '8',
+        updatedAt: current?.updatedAt ?? new Date(0).toISOString(),
+      });
+    },
+  },
 ];
+
+function migrationAgendaGroup(task: TaskRecord): AgendaGroup {
+  if (task.exactStartTime) return 'exact';
+  return task.timeWindow ?? 'anyTime';
+}
 
 export class PlaniblyDatabase extends Dexie {
   metadata!: EntityTable<MetadataRecord, 'key'>;
@@ -225,6 +293,8 @@ export class PlaniblyDatabase extends Dexie {
   taskTags!: EntityTable<TaskTagRecord, 'id'>;
   taskRelationships!: EntityTable<TaskRelationshipRecord, 'id'>;
   dashboardLayouts!: EntityTable<DashboardLayoutRecord, 'id'>;
+  plannedPlacements!: EntityTable<PlannedPlacementRecord, 'id'>;
+  planningCapacities!: EntityTable<PlanningCapacityRecord, 'id'>;
 
   public constructor(name = DATABASE_NAME) {
     super(name);

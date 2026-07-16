@@ -3,11 +3,11 @@
 ## Scope
 
 Read `Docs/planibly-pwa-product-specification.md` before product work and follow its phased roadmap.
-The current boundary is Phase 2B: Phase 2A features plus the configurable local Home dashboard,
-protected starter layouts, and optional explainable card suggestions. Do not add calendar views,
-timelines, drag scheduling, agenda composition, capacity planning, recurring behavior, reminders,
-shopping-specific behavior, productivity scoring, or insights until the user explicitly begins the
-appropriate phase.
+The current boundary is Phase 2C: Phase 2B features plus the local daily agenda, reusable weekday
+capacity and date overrides, explicit multi-day planning, and review of earlier incomplete plans.
+Do not add calendar-event integration, month/week calendar views, timelines, drag scheduling,
+automatic scheduling, recurring behavior, reminders, shopping-specific behavior, productivity
+scoring, or insights until the user explicitly begins the appropriate phase.
 
 Planibly must remain free, private, local-first, and useful without a backend. Do not add accounts,
 analytics, advertising, paid services, external AI, native iOS claims, or silent network reporting.

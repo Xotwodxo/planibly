@@ -17,6 +17,7 @@ const EMPTY_SNAPSHOT: PlannerSnapshot = {
   tags: [],
   taskTags: [],
   taskRelationships: [],
+  plannedPlacements: [],
   blockedByTaskId: {},
   projectProgressByListId: {},
   deletedAreas: [],

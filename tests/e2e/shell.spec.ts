@@ -374,8 +374,10 @@ test('persists the mobile Phase 2A plan through reload and offline reopening', a
   await quickAdd.getByRole('button', { name: 'Save', exact: true }).click();
 
   const todaySection = page.getByRole('region', { name: 'Today' });
-  await expect(todaySection.getByRole('button', { name: 'Review tomorrow plan' })).toBeVisible();
-  await todaySection.getByRole('button', { name: 'Review tomorrow plan' }).click();
+  await expect(
+    todaySection.getByRole('button', { name: 'Review tomorrow plan', exact: true }),
+  ).toBeVisible();
+  await todaySection.getByRole('button', { name: 'Review tomorrow plan', exact: true }).click();
   const editor = page.getByRole('dialog', { name: 'Edit task' });
   const tomorrow = await page.evaluate(() => {
     const value = new Date();
@@ -394,13 +396,17 @@ test('persists the mobile Phase 2A plan through reload and offline reopening', a
   await expect(todaySection.getByText(/30 min/)).toBeVisible();
 
   await page.reload();
-  await expect(todaySection.getByRole('button', { name: 'Review tomorrow plan' })).toBeVisible();
+  await expect(
+    todaySection.getByRole('button', { name: 'Review tomorrow plan', exact: true }),
+  ).toBeVisible();
   await expect(todaySection.getByText(/Morning/)).toBeVisible();
   await page.evaluate(async () => navigator.serviceWorker.ready);
   await context.setOffline(true);
   try {
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await expect(todaySection.getByRole('button', { name: 'Review tomorrow plan' })).toBeVisible();
+    await expect(
+      todaySection.getByRole('button', { name: 'Review tomorrow plan', exact: true }),
+    ).toBeVisible();
     await expect(todaySection.getByText(/30 min/)).toBeVisible();
   } finally {
     await context.setOffline(false);
@@ -466,6 +472,96 @@ test('persists the mobile Phase 2B dashboard through reload and offline reopenin
   } finally {
     await context.setOffline(false);
   }
+});
+
+test('persists mobile Phase 2C capacity and bulk agenda moves through offline reopening', async ({
+  page,
+  context,
+}, testInfo) => {
+  test.skip(!testInfo.project.name.includes('mobile'), 'Mobile-only Phase 2C flow');
+  await page.goto('/planibly/plan');
+  await expect(page.getByRole('heading', { name: 'Shape time with intention' })).toBeVisible();
+
+  for (const title of ['Phase 2C first', 'Phase 2C second']) {
+    await page.locator('.quick-add-fab').click();
+    const quickAdd = page.getByRole('dialog', { name: 'Quick Add' });
+    await quickAdd.getByRole('textbox', { name: 'Task title' }).fill(title);
+    await quickAdd.getByRole('radio', { name: 'Today' }).check();
+    await quickAdd.getByRole('button', { name: 'Save', exact: true }).click();
+  }
+
+  await page.getByText('Adjust capacity').click();
+  const weekdayCapacity = page.getByRole('group', { name: 'Weekday default' });
+  await weekdayCapacity.getByLabel('Minutes').fill('120');
+  await weekdayCapacity.getByRole('button', { name: 'Save default' }).click();
+  await expect(page.getByText('2 hrs available')).toBeVisible();
+
+  const horizon = page.getByRole('region', { name: 'Plan the week ahead' });
+  await horizon.getByRole('checkbox', { name: 'Select Phase 2C first' }).check();
+  await horizon.getByRole('checkbox', { name: 'Select Phase 2C second' }).check();
+  const tomorrow = await page.evaluate(() => {
+    const value = new Date();
+    value.setDate(value.getDate() + 1);
+    return [
+      String(value.getFullYear()).padStart(4, '0'),
+      String(value.getMonth() + 1).padStart(2, '0'),
+      String(value.getDate()).padStart(2, '0'),
+    ].join('-');
+  });
+  const selection = page.getByRole('group', { name: 'Selected task actions' });
+  await selection.getByLabel('Move to').fill(tomorrow);
+  await selection.getByRole('button', { name: 'Move selected' }).click();
+  await page.getByLabel('Agenda date', { exact: true }).fill(tomorrow);
+  const agenda = page.locator('.agenda-focus');
+  await expect(agenda.getByRole('button', { name: 'Phase 2C first', exact: true })).toBeVisible();
+  await expect(agenda.getByRole('button', { name: 'Phase 2C second', exact: true })).toBeVisible();
+
+  await page.reload();
+  await page.getByLabel('Agenda date', { exact: true }).fill(tomorrow);
+  await expect(agenda.getByRole('button', { name: 'Phase 2C first', exact: true })).toBeVisible();
+  await page.evaluate(async () => navigator.serviceWorker.ready);
+  await context.setOffline(true);
+  try {
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.getByLabel('Agenda date', { exact: true }).fill(tomorrow);
+    await expect(
+      agenda.getByRole('button', { name: 'Phase 2C second', exact: true }),
+    ).toBeVisible();
+  } finally {
+    await context.setOffline(false);
+  }
+});
+
+test('Phase 2C plan remains usable at large text without page overflow', async ({ page }) => {
+  await page.goto('/planibly/plan');
+  await expect(page.getByRole('heading', { name: 'Shape time with intention' })).toBeVisible();
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '200%';
+  });
+  const overflow = await page.evaluate(() => {
+    const clientWidth = document.documentElement.clientWidth;
+    return {
+      clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+      offenders: Array.from(document.querySelectorAll<HTMLElement>('body *'))
+        .map((element) => {
+          const rectangle = element.getBoundingClientRect();
+          return {
+            element: `${element.tagName.toLowerCase()}.${element.className}`,
+            left: Math.round(rectangle.left),
+            right: Math.round(rectangle.right),
+            width: Math.round(rectangle.width),
+          };
+        })
+        .filter((element) => element.right > clientWidth + 1 || element.left < -1)
+        .slice(0, 12),
+    };
+  });
+  expect(overflow.scrollWidth, JSON.stringify(overflow.offenders)).toBeLessThanOrEqual(
+    overflow.clientWidth,
+  );
+  await expect(page.getByLabel('Agenda date', { exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Plan the week ahead' })).toBeVisible();
 });
 
 test('dashboard cards respond without horizontal overflow at large text', async ({

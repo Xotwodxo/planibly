@@ -112,8 +112,19 @@ function visibleActiveTasks(snapshot: PlannerSnapshot): TaskRecord[] {
   return snapshot.tasks.filter((task) => listIds.has(task.listId) && task.status !== 'completed');
 }
 
-function byPlan(left: TaskRecord, right: TaskRecord): number {
-  const date = (left.plannedDate ?? '').localeCompare(right.plannedDate ?? '');
+function plannedDateByTask(snapshot: PlannerSnapshot): Map<string, string> {
+  const dates = new Map<string, string>();
+  for (const task of snapshot.tasks) {
+    if (task.plannedDate) dates.set(task.id, task.plannedDate);
+  }
+  for (const placement of snapshot.plannedPlacements) {
+    dates.set(placement.taskId, placement.localDate);
+  }
+  return dates;
+}
+
+function byPlan(dates: ReadonlyMap<string, string>, left: TaskRecord, right: TaskRecord): number {
+  const date = (dates.get(left.id) ?? '').localeCompare(dates.get(right.id) ?? '');
   if (date !== 0) return date;
   const leftTime = left.exactStartTime
     ? Number(left.exactStartTime.replace(':', ''))
@@ -128,8 +139,14 @@ function byPlan(left: TaskRecord, right: TaskRecord): number {
   return leftTime - rightTime || left.order - right.order;
 }
 
-function byDeadline(left: TaskRecord, right: TaskRecord): number {
-  return (left.deadlineDate ?? '').localeCompare(right.deadlineDate ?? '') || byPlan(left, right);
+function byDeadline(
+  dates: ReadonlyMap<string, string>,
+  left: TaskRecord,
+  right: TaskRecord,
+): number {
+  return (
+    (left.deadlineDate ?? '').localeCompare(right.deadlineDate ?? '') || byPlan(dates, left, right)
+  );
 }
 
 export function smartTasksFromSnapshot(
@@ -141,6 +158,7 @@ export function smartTasksFromSnapshot(
   const visibleListIds = new Set(snapshot.lists.map((list) => list.id));
   const visibleTasks = snapshot.tasks.filter((task) => visibleListIds.has(task.listId));
   const incomplete = visibleActiveTasks(snapshot);
+  const plannedDates = plannedDateByTask(snapshot);
   const horizonEnd = addCalendarDays(today, 2);
   switch (key) {
     case 'inbox':
@@ -156,29 +174,32 @@ export function smartTasksFromSnapshot(
     case 'completed':
       return visibleTasks.filter((task) => task.status === 'completed');
     case 'today':
-      return incomplete.filter((task) => task.plannedDate === today).sort(byPlan);
+      return incomplete
+        .filter((task) => plannedDates.get(task.id) === today)
+        .sort((left, right) => byPlan(plannedDates, left, right));
     case 'nextThreeDays':
       return incomplete
         .filter(
           (task) =>
-            task.plannedDate !== undefined &&
-            task.plannedDate >= today &&
-            task.plannedDate <= horizonEnd,
+            (plannedDates.get(task.id) ?? '') >= today &&
+            (plannedDates.get(task.id) ?? '') <= horizonEnd,
         )
-        .sort(byPlan);
+        .sort((left, right) => byPlan(plannedDates, left, right));
     case 'upcoming':
       return incomplete
-        .filter((task) => task.plannedDate !== undefined && task.plannedDate > horizonEnd)
-        .sort(byPlan);
+        .filter((task) => (plannedDates.get(task.id) ?? '') > horizonEnd)
+        .sort((left, right) => byPlan(plannedDates, left, right));
     case 'deadlines':
-      return incomplete.filter((task) => task.deadlineDate !== undefined).sort(byDeadline);
+      return incomplete
+        .filter((task) => task.deadlineDate !== undefined)
+        .sort((left, right) => byDeadline(plannedDates, left, right));
     case 'overdue':
       return incomplete
         .filter((task) => task.deadlineDate !== undefined && task.deadlineDate < today)
-        .sort(byDeadline);
+        .sort((left, right) => byDeadline(plannedDates, left, right));
     case 'unscheduled':
       return incomplete.filter(
-        (task) => task.plannedDate === undefined && task.flexibleStartDate === undefined,
+        (task) => !plannedDates.has(task.id) && task.flexibleStartDate === undefined,
       );
     case 'recentlyDeleted':
       return [];
@@ -190,6 +211,7 @@ export function planningOverviewFromSnapshot(
   today: string,
 ): PlanningOverview {
   const incomplete = visibleActiveTasks(snapshot);
+  const plannedDates = plannedDateByTask(snapshot);
   const tomorrow = addCalendarDays(today, 1);
   const horizonEnd = addCalendarDays(today, 2);
   return {
@@ -197,19 +219,18 @@ export function planningOverviewFromSnapshot(
     nextThreeDays: incomplete
       .filter(
         (task) =>
-          task.plannedDate !== undefined &&
-          task.plannedDate >= tomorrow &&
-          task.plannedDate <= horizonEnd,
+          (plannedDates.get(task.id) ?? '') >= tomorrow &&
+          (plannedDates.get(task.id) ?? '') <= horizonEnd,
       )
-      .sort(byPlan),
+      .sort((left, right) => byPlan(plannedDates, left, right)),
     flexible: incomplete
-      .filter((task) => task.flexibleStartDate !== undefined)
+      .filter((task) => task.flexibleStartDate !== undefined && !plannedDates.has(task.id))
       .sort((left, right) =>
         (left.flexibleStartDate ?? '').localeCompare(right.flexibleStartDate ?? ''),
       ),
     upcomingDeadlines: incomplete
       .filter((task) => task.deadlineDate !== undefined && task.deadlineDate >= today)
-      .sort(byDeadline),
+      .sort((left, right) => byDeadline(plannedDates, left, right)),
     unscheduled: smartTasksFromSnapshot(snapshot, 'unscheduled', today),
   };
 }
