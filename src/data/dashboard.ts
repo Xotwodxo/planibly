@@ -12,9 +12,10 @@ import {
   type DashboardSuggestionType,
 } from './dashboardTypes';
 import { smartTasksFromSnapshot } from './planning';
-import { eventsForDate, visibleCalendarEvents } from './calendar';
+import { eventsForDate } from './calendar';
+import { expandCalendarOccurrences } from './recurrence';
 import type {
-  CalendarEventRecord,
+  CalendarOccurrence,
   PlanListRecord,
   PlannerSnapshot,
   TaskRecord,
@@ -34,7 +35,7 @@ export type ProjectNextAction = {
 export type DashboardCardData = {
   tasks: TaskRecord[];
   projectNextActions: ProjectNextAction[];
-  events: CalendarEventRecord[];
+  events: CalendarOccurrence[];
   totalCount: number;
 };
 
@@ -196,11 +197,11 @@ export function dashboardCardDataFromSnapshot(
 ): DashboardCardData {
   let tasks: TaskRecord[] = [];
   let projectNextActions: ProjectNextAction[] = [];
-  let events: CalendarEventRecord[] = [];
+  let events: CalendarOccurrence[] = [];
   switch (type) {
     case 'today':
       tasks = smartTasksFromSnapshot(snapshot, 'today', today);
-      events = eventsForDate(visibleCalendarEvents(snapshot), today);
+      events = eventsForDate(expandCalendarOccurrences(snapshot, today, today), today);
       break;
     case 'overdue':
       tasks = smartTasksFromSnapshot(snapshot, 'overdue', today);

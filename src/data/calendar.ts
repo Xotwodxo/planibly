@@ -24,10 +24,10 @@ export function eventOccursOn(event: CalendarEventRecord, date: string): boolean
   return event.startDate <= date && event.endDate >= date;
 }
 
-export function eventsForDate(
-  events: readonly CalendarEventRecord[],
+export function eventsForDate<T extends CalendarEventRecord>(
+  events: readonly T[],
   date: string,
-): CalendarEventRecord[] {
+): T[] {
   return events
     .filter((event) => eventOccursOn(event, date))
     .sort((a, b) => {
@@ -65,11 +65,11 @@ export function monthGrid(
   });
 }
 
-export function upcomingEvents(
-  events: readonly CalendarEventRecord[],
+export function upcomingEvents<T extends CalendarEventRecord>(
+  events: readonly T[],
   fromDate: string,
   horizonDays: number,
-): CalendarEventRecord[] {
+): T[] {
   const endDate = addCalendarDays(fromDate, horizonDays - 1);
   return events
     .filter((event) => event.endDate >= fromDate && event.startDate <= endDate)

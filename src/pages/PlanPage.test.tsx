@@ -31,21 +31,25 @@ describe('Phase 2A planning interface', () => {
       exactStartTime: '09:30',
       estimatedDurationMinutes: 60,
     });
-    await calendarRepository.saveEvent({
-      calendarId: DEFAULT_CALENDAR_ID,
-      title: 'Appointment',
-      startDate: today,
-      endDate: today,
-      allDay: false,
-      startTime: '09:00',
-      endTime: '10:00',
-    });
+    await calendarRepository.saveEventWithRecurrence(
+      {
+        calendarId: DEFAULT_CALENDAR_ID,
+        title: 'Appointment',
+        startDate: today,
+        endDate: today,
+        allDay: false,
+        startTime: '09:00',
+        endTime: '10:00',
+      },
+      { frequency: 'daily', interval: 1, endMode: 'count', occurrenceCount: 2 },
+    );
     render(
       <MemoryRouter initialEntries={['/plan']}>
         <App />
       </MemoryRouter>,
     );
     expect(await screen.findByRole('heading', { name: 'Appointments' })).toBeVisible();
+    expect(screen.getByText('Repeats')).toBeVisible();
     expect(screen.getByText(/Scheduled events: 1 hr/)).toBeVisible();
     expect(screen.getByText('Appointment overlaps Timed task.')).toBeVisible();
   });

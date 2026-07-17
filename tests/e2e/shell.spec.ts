@@ -143,6 +143,59 @@ test('keeps the calendar month and event dialog contained at large text', async 
   expect(box?.height ?? 0).toBeLessThanOrEqual(page.viewportSize()!.height);
 });
 
+test('persists recurring occurrences and event templates through mobile offline reopening', async ({
+  page,
+  context,
+}, testInfo) => {
+  test.skip(!testInfo.project.name.includes('mobile'), 'Mobile-only Phase 3B flow');
+  await page.goto('/planibly/calendar');
+  await page.getByRole('button', { name: 'Create event' }).click();
+  let dialog = page.getByRole('dialog', { name: 'Create event' });
+  await dialog.getByLabel('Title').fill('Recurring offline review');
+  await dialog.getByLabel('All day').check();
+  await dialog.getByText('Repeat', { exact: true }).click();
+  await dialog.getByRole('checkbox', { name: 'Repeat this event' }).check();
+  await dialog.getByLabel('Ends').selectOption('count');
+  await dialog.getByRole('spinbutton', { name: 'Number of occurrences' }).fill('3');
+  await dialog.getByRole('button', { name: 'Save event' }).click();
+  await expect(
+    page.getByRole('button', { name: /Recurring offline review/ }).first(),
+  ).toBeVisible();
+
+  await page.getByRole('button', { name: 'Templates' }).click();
+  const manager = page.getByRole('dialog', { name: 'Event templates' });
+  await manager.getByLabel('Template name').fill('Offline call');
+  await manager.getByLabel('Event title').fill('Template-created call');
+  await manager.getByRole('button', { name: 'Create template' }).click();
+  await expect(manager.getByText('Offline call', { exact: true })).toBeVisible();
+  await manager.getByRole('button', { name: 'Close dialog' }).click();
+
+  await page.getByRole('button', { name: 'Create event' }).click();
+  dialog = page.getByRole('dialog', { name: 'Create event' });
+  const templateOption = dialog.getByRole('option', { name: 'Offline call' });
+  await dialog
+    .getByLabel('Template')
+    .selectOption((await templateOption.getAttribute('value')) ?? '');
+  await dialog.getByRole('button', { name: 'Apply' }).click();
+  await expect(dialog.getByLabel('Title')).toHaveValue('Template-created call');
+  await dialog.getByRole('button', { name: 'Save event' }).click();
+  await expect(page.getByRole('button', { name: /Template-created call/ }).first()).toBeVisible();
+
+  await page.reload();
+  await expect(
+    page.getByRole('button', { name: /Recurring offline review/ }).first(),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: /Template-created call/ }).first()).toBeVisible();
+  await context.setOffline(true);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Appointments, kept local' })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: /Recurring offline review/ }).first(),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: /Template-created call/ }).first()).toBeVisible();
+  await context.setOffline(false);
+});
+
 test('persists the primary mobile organisation flow through reload and offline use', async ({
   page,
   context,

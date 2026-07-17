@@ -50,15 +50,18 @@ describe('Phase 2B Home dashboard', () => {
 
   it('includes visible appointments in the existing Today card and opens the event editor', async () => {
     const today = localDateFromDate(new Date());
-    await calendarRepository.saveEvent({
-      calendarId: DEFAULT_CALENDAR_ID,
-      title: 'Check-up',
-      startDate: today,
-      endDate: today,
-      allDay: false,
-      startTime: '10:00',
-      endTime: '10:30',
-    });
+    await calendarRepository.saveEventWithRecurrence(
+      {
+        calendarId: DEFAULT_CALENDAR_ID,
+        title: 'Check-up',
+        startDate: today,
+        endDate: today,
+        allDay: false,
+        startTime: '10:00',
+        endTime: '10:30',
+      },
+      { frequency: 'daily', interval: 1, endMode: 'count', occurrenceCount: 2 },
+    );
     const user = userEvent.setup();
     render(
       <MemoryRouter>
@@ -66,6 +69,7 @@ describe('Phase 2B Home dashboard', () => {
       </MemoryRouter>,
     );
     const todayCard = await screen.findByRole('region', { name: 'Today' });
+    expect(within(todayCard).getByText(/Repeats/)).toBeVisible();
     expect(within(todayCard).getByText(/Appointment · 10:00–10:30 · Personal/)).toBeVisible();
     await user.click(within(todayCard).getByRole('button', { name: 'Check-up' }));
     expect(screen.getByRole('dialog', { name: 'Edit event' })).toBeVisible();

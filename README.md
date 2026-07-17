@@ -1,10 +1,11 @@
 # Planibly
 
 Planibly is a zero-cost, private, offline-first personal planning PWA. This repository currently
-implements the installable foundation and the local planning system through **Phase 3A**. Alongside
+implements the installable foundation and the local planning system through **Phase 3B**. Alongside
 organisation, projects, search, recovery, planning, capacity, and the configurable Home dashboard,
-it now includes private internal calendars and appointments integrated into Calendar, Plan, and
-Home. Recurrence, reminders, external calendar access, ICS, and timelines remain out of scope.
+it now includes private internal calendars, appointments, recurring occurrences, and reusable event
+templates integrated into Calendar, Plan, and Home. Reminders, external calendar access, ICS, and
+timelines remain out of scope.
 
 ## What Phase 0 contains
 
@@ -80,6 +81,16 @@ Home. Recurrence, reminders, external calendar access, ICS, and timelines remain
 - Informational appointment and overlap presentation in Plan without changing task capacity
 - Today-card appointment summaries without changing saved dashboard layout definitions
 - Dexie schema version 9 with grouped soft deletion, undo, restoration, and permanent deletion
+
+## What Phase 3B contains
+
+- Daily, weekdays, selected-weekday weekly, monthly day/ordinal, and yearly recurrence with intervals
+- Never, local end-date, and occurrence-count endings with explicit short-month and leap-day rules
+- Bounded deterministic occurrence expansion with stable series/date identities and local wall-clock time
+- Durable occurrence overrides/cancellations plus explicit this-event, this-and-future, and series scopes
+- Calendar, Plan, Home, overlap, calendar deletion, undo, and Recently Deleted integration
+- Optional reusable event templates with CRUD, ordering, fallback calendar, recovery, and permanent deletion
+- Dexie schema version 10 with recurrence rules, exceptions, and event template stores
 
 There is no backend, account, analytics, external AI, paid service, or native iOS integration.
 
@@ -179,5 +190,6 @@ See [Docs/phase-0-architecture.md](Docs/phase-0-architecture.md),
 [Docs/phase-2a-architecture.md](Docs/phase-2a-architecture.md), and
 [Docs/phase-2b-architecture.md](Docs/phase-2b-architecture.md), and
 [Docs/phase-2c-architecture.md](Docs/phase-2c-architecture.md), and
-[Docs/phase-3a-architecture.md](Docs/phase-3a-architecture.md) for the current architecture, data
-invariants, and manual device checks.
+[Docs/phase-3a-architecture.md](Docs/phase-3a-architecture.md), and
+[Docs/phase-3b-architecture.md](Docs/phase-3b-architecture.md) for the current architecture, data
+invariants, safety bounds, and manual device checks.

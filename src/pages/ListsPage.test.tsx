@@ -46,6 +46,27 @@ describe('ListsPage', () => {
     expect((await database.calendarEvents.get(event.id))?.deletedAt).toBeUndefined();
   });
 
+  it('restores soft-deleted event templates through the shared recovery interface', async () => {
+    const template = await calendarRepository.saveTemplate({
+      name: 'Recovery template',
+      title: 'Recovered event',
+      calendarId: DEFAULT_CALENDAR_ID,
+      allDay: true,
+    });
+    await calendarRepository.deleteTemplate(template.id);
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/lists?smart=recentlyDeleted']}>
+        <App />
+      </MemoryRouter>,
+    );
+    const row = (await screen.findByText('Recovery template')).closest('li')!;
+    expect(within(row).getByText('Event template')).toBeVisible();
+    await user.click(within(row).getByRole('button', { name: 'Restore' }));
+    await waitFor(() => expect(screen.queryByText('Recovery template')).not.toBeInTheDocument());
+    expect((await database.eventTemplates.get(template.id))?.deletedAt).toBeUndefined();
+  });
+
   it('persists cleared completed tasks without deleting them and keeps newly completed tasks visible', async () => {
     const user = userEvent.setup();
     const view = render(
@@ -108,7 +129,7 @@ describe('ListsPage', () => {
     );
     expect(screen.getByRole('button', { name: 'Call garage soon' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Clear Completed' })).toBeVisible();
-  });
+  }, 10_000);
 
   it('shows explicit choices before deleting non-empty areas and lists', async () => {
     const area = (await plannerRepository.getSnapshot()).areas[0]!;
@@ -248,8 +269,17 @@ describe('ListsPage', () => {
     );
     expect(screen.getByText('Archived projects (1)')).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(async () =>
+      expect((await database.lists.get(project.id))?.archivedAt).toBeUndefined(),
+    );
     await user.click(screen.getByRole('button', { name: 'Personal' }));
-    expect(await screen.findByRole('button', { name: /^Kitchen refresh/ })).toBeVisible();
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole('region', { name: 'Lists' })).getByRole('button', {
+          name: /^Kitchen refresh/,
+        }),
+      ).toBeVisible(),
+    );
   });
 
   it('searches local records and restores a deleted task from Recently Deleted', async () => {

@@ -3,7 +3,7 @@
 ## Scope
 
 Read `Docs/planibly-pwa-product-specification.md` before product work and follow its phased roadmap.
-The current boundary is Phase 3A: internal local calendars and appointments. Do not add recurrence,
+The current boundary is Phase 3B: recurring internal events and reusable event templates. Do not add
 reminders, external calendar access, ICS, timelines, drag scheduling, automatic scheduling,
 shopping-specific behavior, productivity scoring, or insights until explicitly begun.
 

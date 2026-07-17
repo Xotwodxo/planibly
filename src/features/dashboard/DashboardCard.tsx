@@ -11,7 +11,7 @@ import {
   dashboardTaskLimit,
 } from '../../data/dashboard';
 import type { DashboardCardConfig } from '../../data/dashboardTypes';
-import type { CalendarEventRecord, PlannerSnapshot, TaskRecord } from '../../data/plannerTypes';
+import type { CalendarOccurrence, PlannerSnapshot, TaskRecord } from '../../data/plannerTypes';
 import { openQuickAdd } from '../planner/plannerEvents';
 import { TaskPlanningSummary } from '../planner/TaskPlanningSummary';
 
@@ -21,7 +21,7 @@ type DashboardCardProps = {
   today: string;
   onComplete: (task: TaskRecord, completed: boolean) => Promise<void>;
   onEdit: (task: TaskRecord) => void;
-  onEditEvent: (event: CalendarEventRecord) => void;
+  onEditEvent: (event: CalendarOccurrence) => void;
 };
 
 export function DashboardCard({
@@ -77,6 +77,7 @@ export function DashboardCard({
                       {event.title}
                     </button>
                     <span className="task-location">
+                      {event.isRecurring ? 'Repeats · ' : ''}
                       Appointment ·{' '}
                       {event.allDay ? 'All day' : `${event.startTime}–${event.endTime}`} ·{' '}
                       {

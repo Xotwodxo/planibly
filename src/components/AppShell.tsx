@@ -52,7 +52,12 @@ export function AppShell() {
   async function undoDeletion() {
     if (!undoReceipt) return;
     try {
-      if (undoReceipt.kind === 'calendar' || undoReceipt.kind === 'event') {
+      if (
+        undoReceipt.kind === 'calendar' ||
+        undoReceipt.kind === 'event' ||
+        undoReceipt.kind === 'occurrence' ||
+        undoReceipt.kind === 'template'
+      ) {
         await calendarRepository.restoreDeletionGroup(undoReceipt.groupId, undoReceipt);
       } else {
         await plannerRepository.restoreDeletionGroup(undoReceipt.groupId, undoReceipt);
@@ -116,8 +121,12 @@ export function AppShell() {
       {undoReceipt ? (
         <div className="undo-toast" role="status" aria-live="polite">
           <span>
-            {undoReceipt.label}{' '}
-            {undoReceipt.operation === 'archive' ? 'archived.' : 'moved to Recently Deleted.'}
+            {undoReceipt.undoMessage ?? (
+              <>
+                {undoReceipt.label}{' '}
+                {undoReceipt.operation === 'archive' ? 'archived.' : 'moved to Recently Deleted.'}
+              </>
+            )}
           </span>
           <button type="button" onClick={() => void undoDeletion()}>
             Undo

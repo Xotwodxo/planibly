@@ -809,6 +809,11 @@ function RecentlyDeletedPanel({ snapshot }: { snapshot: PlannerSnapshot }) {
 
   async function restore(kind: DeletionEntityKind, id: string, withParents = false) {
     try {
+      if (kind === 'template') {
+        await calendarRepository.restoreTemplate(id);
+        setRecoveryAnnouncement('Event template restored.');
+        return;
+      }
       if (kind === 'calendar') {
         await calendarRepository.restoreCalendar(id);
         setRecoveryAnnouncement('Calendar restored.');
@@ -913,7 +918,12 @@ function RecentlyDeletedPanel({ snapshot }: { snapshot: PlannerSnapshot }) {
                 ? calendarRepository.permanentlyDeleteCalendar(permanentRequest.id)
                 : permanentRequest.kind === 'event'
                   ? calendarRepository.permanentlyDeleteEvent(permanentRequest.id)
-                  : plannerRepository.permanentlyDelete(permanentRequest.kind, permanentRequest.id)
+                  : permanentRequest.kind === 'template'
+                    ? calendarRepository.permanentlyDeleteTemplate(permanentRequest.id)
+                    : plannerRepository.permanentlyDelete(
+                        permanentRequest.kind,
+                        permanentRequest.id,
+                      )
             ).then(() => setPermanentRequest(null))
           }
         />
@@ -1031,6 +1041,14 @@ function deletedItems(snapshot: PlannerSnapshot) {
       label: event.title,
       location: `Event in ${[...snapshot.calendars, ...snapshot.deletedCalendars].find((calendar) => calendar.id === event.calendarId)?.name ?? 'deleted calendar'}`,
       deletedAt: event.deletedAt!,
+      canDeleteForever: true,
+    })),
+    ...snapshot.deletedEventTemplates.map((template) => ({
+      kind: 'template' as const,
+      id: template.id,
+      label: template.name,
+      location: 'Event template',
+      deletedAt: template.deletedAt!,
       canDeleteForever: true,
     })),
   ].sort((left, right) => right.deletedAt.localeCompare(left.deletedAt));

@@ -108,6 +108,79 @@ export type CalendarEventRecord = {
   deletionGroupId?: string;
 };
 
+export type RecurrenceFrequency =
+  'daily' | 'weekdays' | 'weekly' | 'monthlyDay' | 'monthlyOrdinal' | 'yearly';
+
+export type RecurrenceEndMode = 'never' | 'until' | 'count';
+
+export type RecurrenceDefinition = {
+  frequency: RecurrenceFrequency;
+  interval: number;
+  weekdays?: number[];
+  monthDay?: number;
+  ordinal?: 1 | 2 | 3 | 4 | -1;
+  ordinalWeekday?: number;
+  yearlyMonth?: number;
+  yearlyDay?: number;
+  endMode: RecurrenceEndMode;
+  endDate?: string;
+  occurrenceCount?: number;
+};
+
+export type RecurrenceRuleRecord = RecurrenceDefinition & {
+  id: string;
+  eventId: string;
+  createdAt: string;
+  modifiedAt: string;
+};
+
+export type RecurrenceExceptionRecord = {
+  id: string;
+  seriesEventId: string;
+  originalStartDate: string;
+  kind: 'cancelled' | 'override';
+  calendarId?: string;
+  title?: string;
+  startDate?: string;
+  endDate?: string;
+  allDay?: boolean;
+  startTime?: string | null;
+  endTime?: string | null;
+  location?: string | null;
+  notes?: string | null;
+  createdAt: string;
+  modifiedAt: string;
+  deletedAt?: string;
+  deletionGroupId?: string;
+};
+
+export type EventTemplateRecord = {
+  id: string;
+  name: string;
+  title: string;
+  calendarId?: string;
+  allDay: boolean;
+  startTime?: string;
+  endTime?: string;
+  suggestedDurationMinutes?: number;
+  location?: string;
+  notes?: string;
+  recurrence?: RecurrenceDefinition;
+  order: number;
+  createdAt: string;
+  modifiedAt: string;
+  deletedAt?: string;
+  deletionGroupId?: string;
+};
+
+export type CalendarOccurrence = CalendarEventRecord & {
+  sourceEventId: string;
+  originalStartDate: string;
+  isRecurring: boolean;
+  recurrenceRuleId?: string;
+  exceptionId?: string;
+};
+
 export type TaskPlanning = {
   plannedDate?: string;
   deadlineDate?: string;
@@ -174,7 +247,8 @@ export type TaskRelationshipRecord = {
   deletionGroupId?: string;
 };
 
-export type DeletionEntityKind = 'area' | 'list' | 'task' | 'step' | 'calendar' | 'event';
+export type DeletionEntityKind =
+  'area' | 'list' | 'task' | 'step' | 'calendar' | 'event' | 'occurrence' | 'template';
 
 export type DeletionReceipt = {
   groupId: string;
@@ -183,8 +257,15 @@ export type DeletionReceipt = {
   label: string;
   deletedAt: string;
   operation?: 'delete' | 'archive';
+  undoMessage?: string;
   movedListIds?: string[];
   movedEventIds?: string[];
+  movedExceptionIds?: string[];
+  calendarUndo?: {
+    createdExceptionId?: string;
+    previousRule?: RecurrenceRuleRecord;
+    removedExceptions?: RecurrenceExceptionRecord[];
+  };
 };
 
 export type ProjectProgress = {
@@ -246,6 +327,9 @@ export type PlannerSnapshot = {
   plannedPlacements: PlannedPlacementRecord[];
   calendars: CalendarRecord[];
   calendarEvents: CalendarEventRecord[];
+  recurrenceRules: RecurrenceRuleRecord[];
+  recurrenceExceptions: RecurrenceExceptionRecord[];
+  eventTemplates: EventTemplateRecord[];
   blockedByTaskId: Record<string, string[]>;
   projectProgressByListId: Record<string, ProjectProgress>;
   deletedAreas: AreaRecord[];
@@ -254,4 +338,5 @@ export type PlannerSnapshot = {
   deletedSteps: TaskStepRecord[];
   deletedCalendars: CalendarRecord[];
   deletedCalendarEvents: CalendarEventRecord[];
+  deletedEventTemplates: EventTemplateRecord[];
 };

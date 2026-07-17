@@ -2539,9 +2539,96 @@ select {
   color: var(--color-accent);
 }
 
+.optional-section {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-secondary);
+}
+.optional-section > summary {
+  min-height: 2.75rem;
+  padding: var(--space-3);
+  cursor: pointer;
+  font-weight: 700;
+}
+.optional-section > .editor-form {
+  padding: 0 var(--space-3) var(--space-3);
+}
+.recurrence-fields__options {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+.inline-number-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.inline-number-field input {
+  max-width: 8rem;
+}
+.weekday-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2);
+}
+.weekday-choices .check-field {
+  min-width: 4rem;
+}
+.recurrence-badge {
+  padding: var(--space-2) var(--space-3);
+  border-inline-start: 0.25rem solid var(--color-primary);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-secondary);
+}
+.scope-choices {
+  display: grid;
+  gap: var(--space-3);
+}
+.scope-choices .button {
+  min-height: 4.5rem;
+  height: auto;
+  align-items: flex-start;
+  flex-direction: column;
+  text-align: start;
+  white-space: normal;
+}
+.scope-choices .button span {
+  font-weight: 400;
+}
+.template-picker {
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2);
+}
+.template-manager {
+  display: grid;
+  gap: var(--space-5);
+}
+.template-manager__list li > div:first-child {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.template-manager__list small,
+.template-manager__list span {
+  overflow-wrap: anywhere;
+  color: var(--color-text-secondary);
+}
+
 @media (min-width: 60rem) {
   .calendar-agendas {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .template-manager {
+    grid-template-columns: minmax(16rem, 0.8fr) minmax(20rem, 1.2fr);
   }
 }
 
@@ -2550,6 +2637,11 @@ select {
     grid-template-columns: minmax(0, 1fr);
   }
   .calendar-manager__list li {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .template-picker .inline-add,
+  .template-manager .inline-actions {
     align-items: stretch;
     flex-direction: column;
   }

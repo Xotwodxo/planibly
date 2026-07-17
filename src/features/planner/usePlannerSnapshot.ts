@@ -20,6 +20,9 @@ const EMPTY_SNAPSHOT: PlannerSnapshot = {
   plannedPlacements: [],
   calendars: [],
   calendarEvents: [],
+  recurrenceRules: [],
+  recurrenceExceptions: [],
+  eventTemplates: [],
   blockedByTaskId: {},
   projectProgressByListId: {},
   deletedAreas: [],
@@ -28,6 +31,7 @@ const EMPTY_SNAPSHOT: PlannerSnapshot = {
   deletedSteps: [],
   deletedCalendars: [],
   deletedCalendarEvents: [],
+  deletedEventTemplates: [],
 };
 
 export function usePlannerSnapshot(repository: PlannerRepository = plannerRepository) {

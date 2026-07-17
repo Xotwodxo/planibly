@@ -1,6 +1,7 @@
 import { database, type PlaniblyDatabase } from './database';
 import { agendaGroupForTask } from './agenda';
 import { isValidCalendarEventRecord } from './calendar';
+import { isValidEventTemplateRecord } from './recurrence';
 import {
   localDateFromDate,
   planningOverviewFromSnapshot,
@@ -130,6 +131,9 @@ export class PlannerRepository {
       plannedPlacements,
       calendars,
       calendarEvents,
+      recurrenceRules,
+      recurrenceExceptions,
+      eventTemplates,
     ] = await Promise.all([
       this.db.areas.toArray(),
       this.db.lists.toArray(),
@@ -141,6 +145,9 @@ export class PlannerRepository {
       this.db.plannedPlacements.toArray(),
       this.db.calendars.toArray(),
       this.db.calendarEvents.toArray(),
+      this.db.recurrenceRules.toArray(),
+      this.db.recurrenceExceptions.toArray(),
+      this.db.eventTemplates.toArray(),
     ]);
     const activeTasks = tasks.filter(active).sort(byOrder);
     const activeTaskIds = new Set(activeTasks.map((task) => task.id));
@@ -190,6 +197,23 @@ export class PlannerRepository {
           isValidCalendarEventRecord(event) &&
           calendars.some((calendar) => active(calendar) && calendar.id === event.calendarId),
       ),
+      recurrenceRules: recurrenceRules.filter((rule) =>
+        calendarEvents.some(
+          (event) =>
+            event.id === rule.eventId &&
+            active(event) &&
+            calendars.some((calendar) => active(calendar) && calendar.id === event.calendarId),
+        ),
+      ),
+      recurrenceExceptions: recurrenceExceptions.filter(
+        (exception) =>
+          active(exception) &&
+          calendarEvents.some((event) => event.id === exception.seriesEventId && active(event)),
+      ),
+      eventTemplates: eventTemplates
+        .filter(active)
+        .filter(isValidEventTemplateRecord)
+        .sort(byOrder),
       blockedByTaskId,
       projectProgressByListId: Object.fromEntries(
         lists
@@ -224,6 +248,9 @@ export class PlannerRepository {
         .sort(byDeletedAtDescending),
       deletedCalendarEvents: calendarEvents
         .filter((event) => !active(event))
+        .sort(byDeletedAtDescending),
+      deletedEventTemplates: eventTemplates
+        .filter((template) => !active(template))
         .sort(byDeletedAtDescending),
     };
   }

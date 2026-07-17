@@ -27,10 +27,13 @@ describe('PlaniblyDatabase', () => {
       'calendars',
       'dashboardLayouts',
       'diagnostics',
+      'eventTemplates',
       'lists',
       'metadata',
       'plannedPlacements',
       'planningCapacities',
+      'recurrenceExceptions',
+      'recurrenceRules',
       'tags',
       'taskRelationships',
       'taskSteps',
@@ -156,7 +159,7 @@ describe('PlaniblyDatabase', () => {
     expect(await upgraded.tags.count()).toBe(0);
     expect(await upgraded.taskTags.count()).toBe(0);
     expect(await upgraded.taskRelationships.count()).toBe(0);
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '9' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '10' });
 
     upgraded.close();
     await upgraded.delete();
@@ -208,7 +211,7 @@ describe('PlaniblyDatabase', () => {
       createdAt: timestamp,
       modifiedAt: timestamp,
     });
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '9' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '10' });
 
     upgraded.close();
     await upgraded.delete();
@@ -254,7 +257,7 @@ describe('PlaniblyDatabase', () => {
     expect(task?.deadlineDate).toBeUndefined();
     expect(task?.flexibleStartDate).toBeUndefined();
     expect(task?.exactStartTime).toBeUndefined();
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '9' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '10' });
 
     expect(task?.completedAt).toBeUndefined();
 
@@ -394,7 +397,7 @@ describe('PlaniblyDatabase', () => {
     });
     expect(await upgraded.plannedPlacements.get('unplanned-v7')).toBeUndefined();
     expect(await upgraded.planningCapacities.count()).toBe(0);
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '9' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '10' });
 
     upgraded.close();
     await upgraded.delete();
@@ -490,6 +493,51 @@ describe('PlaniblyDatabase', () => {
     });
     expect(await upgraded.calendars.count()).toBe(1);
     expect(await upgraded.calendarEvents.count()).toBe(0);
+    upgraded.close();
+    await upgraded.delete();
+  });
+
+  it('upgrades Phase 3A v9 data append-only and leaves existing events one-off', async () => {
+    const name = `planibly-v9-recurrence-${crypto.randomUUID()}`;
+    const legacy = new Dexie(name);
+    legacy.version(9).stores(schemaVersions.find((schema) => schema.version === 9)!.stores);
+    await legacy.open();
+    const timestamp = '2026-07-16T10:00:00.000Z';
+    await legacy.table('metadata').put({ key: 'schemaVersion', value: '9', updatedAt: timestamp });
+    await legacy.table('calendars').put({
+      id: 'legacy-calendar',
+      name: 'Legacy calendar',
+      color: '#5B67C8',
+      order: 0,
+      isVisible: true,
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    await legacy.table('calendarEvents').put({
+      id: 'legacy-event',
+      calendarId: 'legacy-calendar',
+      title: 'Existing appointment',
+      startDate: '2026-07-20',
+      endDate: '2026-07-20',
+      allDay: false,
+      startTime: '09:00',
+      endTime: '10:00',
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    legacy.close();
+
+    const upgraded = new PlaniblyDatabase(name);
+    await initializeDatabase(upgraded);
+
+    await expect(upgraded.calendarEvents.get('legacy-event')).resolves.toMatchObject({
+      title: 'Existing appointment',
+      startTime: '09:00',
+    });
+    expect(await upgraded.recurrenceRules.count()).toBe(0);
+    expect(await upgraded.recurrenceExceptions.count()).toBe(0);
+    expect(await upgraded.eventTemplates.count()).toBe(0);
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '10' });
     upgraded.close();
     await upgraded.delete();
   });

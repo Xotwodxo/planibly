@@ -15,15 +15,11 @@ import {
   weekdayForLocalDate,
 } from '../data/agenda';
 import { agendaRepository } from '../data/agendaRepository';
-import {
-  eventsForDate,
-  scheduledEventMinutes,
-  timeOverlaps,
-  visibleCalendarEvents,
-} from '../data/calendar';
+import { eventsForDate, scheduledEventMinutes, timeOverlaps } from '../data/calendar';
+import { expandCalendarOccurrences } from '../data/recurrence';
 import { addCalendarDays, formatLocalDate, isLocalDate, localDateFromDate } from '../data/planning';
 import { plannerRepository } from '../data/plannerRepository';
-import type { CalendarEventRecord, PlannerSnapshot, TaskRecord } from '../data/plannerTypes';
+import type { CalendarOccurrence, PlannerSnapshot, TaskRecord } from '../data/plannerTypes';
 import { EventEditorDialog } from '../features/calendar/EventEditorDialog';
 import { TaskEditorDialog } from '../features/planner/TaskEditorDialog';
 import { usePlannerSnapshot } from '../features/planner/usePlannerSnapshot';
@@ -38,7 +34,7 @@ export function PlanPage() {
   const [selectedDate, setSelectedDate] = useState(today);
   const [horizonStart, setHorizonStart] = useState(today);
   const [editingTask, setEditingTask] = useState<TaskRecord | null>(null);
-  const [editingEvent, setEditingEvent] = useState<CalendarEventRecord | null>(null);
+  const [editingEvent, setEditingEvent] = useState<CalendarOccurrence | null>(null);
   const [announcement, setAnnouncement] = useState('');
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   const [bulkDate, setBulkDate] = useState(today);
@@ -52,7 +48,8 @@ export function PlanPage() {
     [selectedDate, snapshot],
   );
   const dayEvents = useMemo(
-    () => eventsForDate(visibleCalendarEvents(snapshot), selectedDate),
+    () =>
+      eventsForDate(expandCalendarOccurrences(snapshot, selectedDate, selectedDate), selectedDate),
     [selectedDate, snapshot],
   );
   const overlaps = useMemo(
@@ -225,6 +222,7 @@ export function PlanPage() {
                               {event.allDay ? 'All day' : `${event.startTime}–${event.endTime}`}
                             </span>
                             <strong>{event.title}</strong>
+                            {event.isRecurring ? <small>Repeats</small> : null}
                             <span>
                               {
                                 snapshot.calendars.find(
@@ -252,6 +250,7 @@ export function PlanPage() {
                               {event.startTime}–{event.endTime}
                             </span>
                             <strong>{event.title}</strong>
+                            {event.isRecurring ? <small>Repeats</small> : null}
                             <span>
                               {
                                 snapshot.calendars.find(
@@ -473,6 +472,8 @@ export function PlanPage() {
         <EventEditorDialog
           event={editingEvent}
           calendars={snapshot.calendars}
+          templates={snapshot.eventTemplates}
+          recurrenceRules={snapshot.recurrenceRules}
           initialDate={selectedDate}
           onAnnounce={setAnnouncement}
           onClose={() => setEditingEvent(null)}

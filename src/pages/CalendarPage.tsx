@@ -2,19 +2,23 @@ import { useMemo, useState } from 'react';
 import { Button } from '../components/ui/Button';
 import { Dialog } from '../components/ui/Dialog';
 import { Surface } from '../components/ui/Surface';
-import {
-  calendarName,
-  eventsForDate,
-  monthGrid,
-  upcomingEvents,
-  visibleCalendarEvents,
-} from '../data/calendar';
+import { calendarName, eventsForDate, monthGrid, upcomingEvents } from '../data/calendar';
 import { calendarRepository } from '../data/calendarRepository';
-import { ENTITY_COLORS, type CalendarEventRecord, type CalendarRecord } from '../data/plannerTypes';
-import { formatLocalDate, localDateFromDate } from '../data/planning';
+import {
+  ENTITY_COLORS,
+  type CalendarEventRecord,
+  type CalendarOccurrence,
+  type CalendarRecord,
+  type EventTemplateRecord,
+  type RecurrenceDefinition,
+} from '../data/plannerTypes';
+import { addCalendarDays, formatLocalDate, localDateFromDate } from '../data/planning';
+import { expandCalendarOccurrences, recurrenceSummary } from '../data/recurrence';
 import { EventEditorDialog } from '../features/calendar/EventEditorDialog';
+import { RecurrenceFields } from '../features/calendar/RecurrenceFields';
 import { showDeletionUndo } from '../features/planner/plannerEvents';
 import { usePlannerSnapshot } from '../features/planner/usePlannerSnapshot';
+import { useUnsavedChanges } from '../features/planner/unsavedChanges';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 function monthFromDate(date: string) {
@@ -38,17 +42,31 @@ export function CalendarPage() {
   const today = localDateFromDate(new Date());
   const [selectedDate, setSelectedDate] = useState(today);
   const [shownMonth, setShownMonth] = useState(monthFromDate(today));
-  const [editing, setEditing] = useState<CalendarEventRecord | 'new' | null>(null);
+  const [editing, setEditing] = useState<CalendarOccurrence | 'new' | null>(null);
   const [managing, setManaging] = useState(false);
+  const [managingTemplates, setManagingTemplates] = useState(false);
   const [upcomingDays, setUpcomingDays] = useState(14);
   const [announcement, setAnnouncement] = useState('');
-  const events = useMemo(() => visibleCalendarEvents(snapshot), [snapshot]);
+  const emptyDays = useMemo(() => monthGrid(shownMonth.year, shownMonth.monthIndex), [shownMonth]);
+  const events = useMemo(
+    () =>
+      expandCalendarOccurrences(
+        snapshot,
+        emptyDays[0]!.localDate,
+        emptyDays[emptyDays.length - 1]!.localDate,
+      ),
+    [emptyDays, snapshot],
+  );
   const days = useMemo(
     () => monthGrid(shownMonth.year, shownMonth.monthIndex, events),
     [events, shownMonth],
   );
   const selectedEvents = eventsForDate(events, selectedDate);
-  const upcoming = upcomingEvents(events, today, upcomingDays);
+  const upcoming = upcomingEvents(
+    expandCalendarOccurrences(snapshot, today, addCalendarDays(today, upcomingDays - 1)),
+    today,
+    upcomingDays,
+  );
   if (isLoading) return <p role="status">Opening calendar…</p>;
   function chooseMonth(offset: number) {
     setShownMonth((current) => shiftMonth(current.year, current.monthIndex, offset));
@@ -68,6 +86,9 @@ export function CalendarPage() {
         <div className="inline-actions">
           <Button variant="secondary" onClick={() => setManaging(true)}>
             Manage calendars
+          </Button>
+          <Button variant="secondary" onClick={() => setManagingTemplates(true)}>
+            Templates
           </Button>
           <Button disabled={!snapshot.calendars.length} onClick={() => setEditing('new')}>
             Create event
@@ -190,6 +211,8 @@ export function CalendarPage() {
         <EventEditorDialog
           event={editing === 'new' ? undefined : editing}
           calendars={snapshot.calendars}
+          templates={snapshot.eventTemplates}
+          recurrenceRules={snapshot.recurrenceRules}
           initialDate={selectedDate}
           onAnnounce={setAnnouncement}
           onClose={() => setEditing(null)}
@@ -203,6 +226,14 @@ export function CalendarPage() {
           onAnnounce={setAnnouncement}
         />
       ) : null}
+      {managingTemplates ? (
+        <TemplateManager
+          templates={snapshot.eventTemplates}
+          calendars={snapshot.calendars}
+          onClose={() => setManagingTemplates(false)}
+          onAnnounce={setAnnouncement}
+        />
+      ) : null}
     </div>
   );
 }
@@ -213,9 +244,9 @@ export function EventList({
   onOpen,
   empty,
 }: {
-  events: CalendarEventRecord[];
+  events: CalendarOccurrence[];
   calendars: CalendarRecord[];
-  onOpen: (event: CalendarEventRecord) => void;
+  onOpen: (event: CalendarOccurrence) => void;
   empty: string;
 }) {
   if (!events.length) return <p className="empty-state">{empty}</p>;
@@ -228,6 +259,7 @@ export function EventList({
               {event.allDay ? 'All day' : `${event.startTime}–${event.endTime}`}
             </span>
             <strong>{event.title}</strong>
+            {event.isRecurring ? <small>Repeats</small> : null}
             <span>
               <i
                 className="calendar-color"
@@ -258,13 +290,13 @@ function UpcomingAgenda({
   today,
   onOpen,
 }: {
-  events: CalendarEventRecord[];
+  events: CalendarOccurrence[];
   calendars: CalendarRecord[];
   today: string;
-  onOpen: (event: CalendarEventRecord) => void;
+  onOpen: (event: CalendarOccurrence) => void;
 }) {
   if (!events.length) return <p className="empty-state">No appointments coming up.</p>;
-  const groupDate = (event: CalendarEventRecord) =>
+  const groupDate = (event: CalendarOccurrence) =>
     event.startDate < today ? today : event.startDate;
   const dates = [...new Set(events.map(groupDate))];
   return (
@@ -495,6 +527,292 @@ function CalendarManager({
                 Delete calendar
               </Button>
             </div>
+          </div>
+        </Dialog>
+      ) : null}
+    </Dialog>
+  );
+}
+
+function TemplateManager({
+  templates,
+  calendars,
+  onClose,
+  onAnnounce,
+}: {
+  templates: EventTemplateRecord[];
+  calendars: CalendarRecord[];
+  onClose: () => void;
+  onAnnounce: (message: string) => void;
+}) {
+  const today = localDateFromDate(new Date());
+  const [editing, setEditing] = useState<EventTemplateRecord | null>(null);
+  const [deleting, setDeleting] = useState<EventTemplateRecord | null>(null);
+  const [name, setName] = useState('');
+  const [title, setTitle] = useState('');
+  const [calendarId, setCalendarId] = useState('');
+  const [allDay, setAllDay] = useState(false);
+  const [startTime, setStartTime] = useState('09:00');
+  const [endTime, setEndTime] = useState('10:00');
+  const [location, setLocation] = useState('');
+  const [notes, setNotes] = useState('');
+  const [recurrence, setRecurrence] = useState<RecurrenceDefinition>();
+  const [error, setError] = useState('');
+  const dirty = editing
+    ? JSON.stringify({
+        name,
+        title,
+        calendarId: calendarId || undefined,
+        allDay,
+        startTime: allDay ? undefined : startTime,
+        endTime: allDay ? undefined : endTime,
+        location: location || undefined,
+        notes: notes || undefined,
+        recurrence,
+      }) !==
+      JSON.stringify({
+        name: editing.name,
+        title: editing.title,
+        calendarId: editing.calendarId,
+        allDay: editing.allDay,
+        startTime: editing.allDay ? undefined : editing.startTime,
+        endTime: editing.allDay ? undefined : editing.endTime,
+        location: editing.location,
+        notes: editing.notes,
+        recurrence: editing.recurrence,
+      })
+    : Boolean(
+        name ||
+        title ||
+        calendarId ||
+        allDay ||
+        startTime !== '09:00' ||
+        endTime !== '10:00' ||
+        location ||
+        notes ||
+        recurrence,
+      );
+  useUnsavedChanges(dirty);
+
+  function reset(template?: EventTemplateRecord) {
+    setEditing(template ?? null);
+    setName(template?.name ?? '');
+    setTitle(template?.title ?? '');
+    setCalendarId(
+      template?.calendarId && calendars.some((calendar) => calendar.id === template.calendarId)
+        ? template.calendarId
+        : '',
+    );
+    setAllDay(template?.allDay ?? false);
+    setStartTime(template?.startTime ?? '09:00');
+    setEndTime(template?.endTime ?? '10:00');
+    setLocation(template?.location ?? '');
+    setNotes(template?.notes ?? '');
+    setRecurrence(template?.recurrence ? { ...template.recurrence } : undefined);
+    setError('');
+  }
+
+  async function save() {
+    try {
+      const saved = await calendarRepository.saveTemplate(
+        {
+          name,
+          title,
+          calendarId: calendarId || undefined,
+          allDay,
+          startTime: allDay ? undefined : startTime,
+          endTime: allDay ? undefined : endTime,
+          location,
+          notes,
+          recurrence,
+        },
+        editing?.id,
+      );
+      reset();
+      onAnnounce(`${saved.name} template saved.`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Template could not save.');
+    }
+  }
+
+  async function remove() {
+    if (!deleting) return;
+    try {
+      const receipt = await calendarRepository.deleteTemplate(deleting.id);
+      showDeletionUndo(receipt);
+      setDeleting(null);
+      onAnnounce(`${deleting.name} moved to Recently Deleted.`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Template could not be deleted.');
+    }
+  }
+
+  return (
+    <Dialog
+      title="Event templates"
+      description="Templates fill an event form. They never create events automatically."
+      onClose={onClose}
+    >
+      <div className="template-manager">
+        <section aria-labelledby="template-form-heading" className="editor-form">
+          <h3 id="template-form-heading">{editing ? `Edit ${editing.name}` : 'New template'}</h3>
+          <label className="field">
+            <span>Template name</span>
+            <input maxLength={80} value={name} onChange={(event) => setName(event.target.value)} />
+          </label>
+          <label className="field">
+            <span>Event title</span>
+            <input
+              maxLength={160}
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span>Default calendar</span>
+            <select value={calendarId} onChange={(event) => setCalendarId(event.target.value)}>
+              <option value="">Protected default calendar</option>
+              {calendars.map((calendar) => (
+                <option key={calendar.id} value={calendar.id}>
+                  {calendar.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="check-field">
+            <input
+              type="checkbox"
+              checked={allDay}
+              onChange={(event) => setAllDay(event.target.checked)}
+            />
+            <span>All day</span>
+          </label>
+          {!allDay ? (
+            <div className="event-editor__dates">
+              <label className="field">
+                <span>Start time</span>
+                <input
+                  type="time"
+                  value={startTime}
+                  onChange={(event) => setStartTime(event.target.value)}
+                />
+              </label>
+              <label className="field">
+                <span>End time</span>
+                <input
+                  type="time"
+                  value={endTime}
+                  onChange={(event) => setEndTime(event.target.value)}
+                />
+              </label>
+            </div>
+          ) : null}
+          <label className="field">
+            <span>
+              Location <small>optional</small>
+            </span>
+            <input
+              maxLength={240}
+              value={location}
+              onChange={(event) => setLocation(event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span>
+              Notes <small>optional</small>
+            </span>
+            <textarea
+              rows={3}
+              maxLength={4000}
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+            />
+          </label>
+          <RecurrenceFields value={recurrence} startDate={today} onChange={setRecurrence} />
+          {error ? (
+            <p className="form-error" role="alert">
+              {error}
+            </p>
+          ) : null}
+          <div className="dialog__actions">
+            {editing ? (
+              <Button variant="quiet" onClick={() => reset()}>
+                Cancel edit
+              </Button>
+            ) : null}
+            <Button onClick={() => void save()}>
+              {editing ? 'Save template' : 'Create template'}
+            </Button>
+          </div>
+        </section>
+        <section aria-labelledby="saved-templates-heading">
+          <h3 id="saved-templates-heading">Saved templates</h3>
+          {templates.length ? (
+            <ol className="calendar-manager__list template-manager__list">
+              {templates.map((template, index) => (
+                <li key={template.id}>
+                  <div>
+                    <strong>{template.name}</strong>
+                    <span>{template.title}</span>
+                    {template.recurrence ? (
+                      <small>{recurrenceSummary(template.recurrence)}</small>
+                    ) : null}
+                  </div>
+                  <div className="inline-actions">
+                    <Button
+                      variant="quiet"
+                      aria-label={`Move ${template.name} up`}
+                      disabled={index === 0}
+                      onClick={() => void calendarRepository.reorderTemplate(template.id, -1)}
+                    >
+                      ↑
+                    </Button>
+                    <Button
+                      variant="quiet"
+                      aria-label={`Move ${template.name} down`}
+                      disabled={index === templates.length - 1}
+                      onClick={() => void calendarRepository.reorderTemplate(template.id, 1)}
+                    >
+                      ↓
+                    </Button>
+                    <Button variant="quiet" onClick={() => reset(template)}>
+                      Edit
+                    </Button>
+                    <Button
+                      variant="quiet"
+                      onClick={() => void calendarRepository.duplicateTemplate(template.id)}
+                    >
+                      Duplicate
+                    </Button>
+                    <Button
+                      variant="quiet"
+                      className="destructive-text"
+                      onClick={() => setDeleting(template)}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="empty-state">No templates yet. Save details you enter often.</p>
+          )}
+        </section>
+      </div>
+      {deleting ? (
+        <Dialog
+          title={`Delete ${deleting.name}?`}
+          description="The template moves to Recently Deleted. Existing events are unchanged."
+          onClose={() => setDeleting(null)}
+        >
+          <div className="dialog__actions">
+            <Button variant="quiet" onClick={() => setDeleting(null)}>
+              Cancel
+            </Button>
+            <Button className="button--destructive" onClick={() => void remove()}>
+              Delete template
+            </Button>
           </div>
         </Dialog>
       ) : null}
