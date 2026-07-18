@@ -264,4 +264,19 @@ describe('Phase 2B Home dashboard', () => {
     await user.click(within(card).getByRole('button', { name: 'Confirm End Focus' }));
     await waitFor(() => expect(database.activeFocus.count()).resolves.toBe(0));
   });
+
+  it('offers one configurable Reviews card without forcing in-app availability', async () => {
+    render(
+      <MemoryRouter>
+        <App />
+      </MemoryRouter>,
+    );
+    const card = await screen.findByRole('region', { name: 'Reviews' });
+    expect(within(card).getByText('Morning Summary')).toBeVisible();
+    expect(within(card).getAllByText('Not currently due')).toHaveLength(3);
+    expect(within(card).getByRole('link', { name: 'View all' })).toHaveAttribute(
+      'href',
+      '/reviews',
+    );
+  });
 });

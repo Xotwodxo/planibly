@@ -19,6 +19,7 @@ const titles: Record<string, string> = {
   '/calendar': 'Calendar',
   '/lists': 'Lists',
   '/routines': 'Routines',
+  '/reviews': 'Reviews',
   '/insights': 'Insights',
   '/settings': 'Settings',
 };

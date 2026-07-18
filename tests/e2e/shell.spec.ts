@@ -992,6 +992,76 @@ test('keeps focused start contained at 200% text on mobile and wider screens', a
   await expect(page.getByRole('heading', { name: 'Focus controls' })).toBeVisible();
 });
 
+test('plans through a mobile Week Ahead review and resumes it offline', async ({
+  page,
+  context,
+}, testInfo) => {
+  test.skip(!testInfo.project.name.includes('mobile'), 'Mobile-only Phase 4C review flow');
+  await page.goto('/planibly/lists');
+  await page.locator('.quick-add-fab').click();
+  const quickAdd = page.getByRole('dialog', { name: 'Quick Add' });
+  await quickAdd.getByRole('textbox', { name: 'Task title' }).fill('Review offline task');
+  await quickAdd.getByRole('button', { name: 'Save', exact: true }).click();
+
+  await page.goto('/planibly/reviews?type=weekAhead');
+  await expect(page.getByRole('heading', { name: 'Pause, review, and choose' })).toBeVisible();
+  await page.getByRole('button', { name: 'Start Week Ahead review' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Week Ahead' })).toBeVisible();
+  await page.getByLabel('Choice for Review offline task').selectOption('move');
+  await page.getByRole('button', { name: 'Preview changes' }).click();
+  const preview = page.getByRole('dialog', { name: 'Preview planning changes' });
+  await expect(preview.getByText('Review offline task')).toBeVisible();
+  await preview.getByRole('button', { name: 'Approve changes' }).click();
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Continue Week Ahead review' }).click();
+  await page.getByText('Planned tasks you can move or remove').click();
+  await expect(page.getByRole('button', { name: 'Review offline task' })).toBeVisible();
+  await page.getByRole('button', { name: 'Save and finish' }).click();
+  await expect(page.getByText('Finished for today')).toBeVisible();
+
+  await page.evaluate(async () => navigator.serviceWorker.ready);
+  await context.setOffline(true);
+  try {
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { name: 'Pause, review, and choose' })).toBeVisible();
+    await expect(page.getByText('Finished for today')).toBeVisible();
+    await expect(page.getByText('Review offline task')).not.toBeVisible();
+  } finally {
+    await context.setOffline(false);
+  }
+});
+
+test('keeps Reviews contained at 200% text on mobile and wider screens', async ({ page }) => {
+  await page.goto('/planibly/reviews');
+  await expect(page.getByRole('heading', { name: 'Pause, review, and choose' })).toBeVisible();
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '200%';
+  });
+  const overflow = await page.evaluate(() => {
+    const clientWidth = document.documentElement.clientWidth;
+    return {
+      clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+      offenders: Array.from(document.querySelectorAll<HTMLElement>('body *'))
+        .map((element) => {
+          const rectangle = element.getBoundingClientRect();
+          return {
+            element: `${element.tagName.toLowerCase()}.${element.className}`,
+            left: Math.round(rectangle.left),
+            right: Math.round(rectangle.right),
+          };
+        })
+        .filter((element) => element.right > clientWidth + 1 || element.left < -1)
+        .slice(0, 12),
+    };
+  });
+  expect(overflow.scrollWidth, JSON.stringify(overflow.offenders)).toBeLessThanOrEqual(
+    overflow.clientWidth,
+  );
+  await expect(page.getByRole('button', { name: 'Start Morning Summary review' })).toBeVisible();
+});
+
 test('reloads the application shell while offline', async ({ page, context }) => {
   await page.goto(githubPagesBasePath);
   await expect(page.getByRole('heading', { name: 'A calm view of what matters' })).toBeVisible();

@@ -97,7 +97,7 @@ describe('dashboard configuration', () => {
       { type: 'futureCard', size: 'wide', order: 0, hidden: false },
     ]);
 
-    expect(normalized).toHaveLength(11);
+    expect(normalized).toHaveLength(12);
     expect(normalized.find((card) => card.type === 'today')).toMatchObject({
       size: 'standard',
       hidden: true,
@@ -105,7 +105,8 @@ describe('dashboard configuration', () => {
     expect(normalized.find((card) => card.type === 'quickAdd')?.hidden).toBe(false);
     expect(normalized.find((card) => card.type === 'currentRoutine')?.hidden).toBe(true);
     expect(normalized.find((card) => card.type === 'currentFocus')?.hidden).toBe(true);
-    expect(normalized.map((card) => card.order)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(normalized.find((card) => card.type === 'reviews')?.hidden).toBe(true);
+    expect(normalized.map((card) => card.order)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
   });
 
   it('reorders, hides, restores, and resizes cards without mutating the source', () => {

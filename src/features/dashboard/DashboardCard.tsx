@@ -16,6 +16,9 @@ import { openQuickAdd } from '../planner/plannerEvents';
 import { TaskPlanningSummary } from '../planner/TaskPlanningSummary';
 import { formatCountdown } from '../../data/focus';
 import { focusRepository } from '../../data/focusRepository';
+import { reviewAvailability } from '../../data/review';
+import type { ReviewState } from '../../data/reviewRepository';
+import { REVIEW_LABELS } from '../../data/reviewTypes';
 
 type DashboardCardProps = {
   config: DashboardCardConfig;
@@ -24,6 +27,7 @@ type DashboardCardProps = {
   onComplete: (task: TaskRecord, completed: boolean) => Promise<void>;
   onEdit: (task: TaskRecord) => void;
   onEditEvent: (event: CalendarOccurrence) => void;
+  reviewState: ReviewState;
 };
 
 export function DashboardCard({
@@ -33,6 +37,7 @@ export function DashboardCard({
   onComplete,
   onEdit,
   onEditEvent,
+  reviewState,
 }: DashboardCardProps) {
   const headingId = useId();
   const [clock, setClock] = useState(() => new Date());
@@ -44,6 +49,15 @@ export function DashboardCard({
   const link = dashboardCardLink(config.type);
   const label = DASHBOARD_CARD_LABELS[config.type];
   const [confirmEndFocus, setConfirmEndFocus] = useState(false);
+  const reviews = reviewAvailability(
+    reviewState.preferences,
+    reviewState.records,
+    reviewState.dismissedKeys,
+    clock,
+  );
+  const reviewCount = reviews.filter(
+    (review) => review.due && !review.dismissed && !review.finished,
+  ).length;
 
   useEffect(() => {
     if (config.type !== 'currentFocus' || snapshot.activeFocus?.countdownState !== 'running')
@@ -62,7 +76,9 @@ export function DashboardCard({
       <header className="dashboard-card__heading">
         <div>
           <h2 id={headingId}>{label}</h2>
-          {config.type !== 'quickAdd' ? <span>{data.totalCount}</span> : null}
+          {config.type !== 'quickAdd' ? (
+            <span>{config.type === 'reviews' ? reviewCount : data.totalCount}</span>
+          ) : null}
         </div>
         {link ? <Link to={link}>View all</Link> : null}
       </header>
@@ -73,6 +89,32 @@ export function DashboardCard({
           <Button type="button" onClick={openQuickAdd}>
             Add a task
           </Button>
+        </div>
+      ) : config.type === 'reviews' ? (
+        <div className="dashboard-reviews">
+          <ul>
+            {reviews.map((review) => (
+              <li key={review.type}>
+                <span>
+                  <strong>{REVIEW_LABELS[review.type]}</strong>
+                  <small>
+                    {review.finished
+                      ? 'Finished for this date'
+                      : review.dismissed
+                        ? 'Dismissed for this session'
+                        : review.due
+                          ? 'Available now'
+                          : review.enabled
+                            ? 'Not currently due'
+                            : 'Home availability disabled'}
+                  </small>
+                </span>
+                <Link to={`/reviews?type=${review.type}`}>
+                  {review.finished ? 'Open' : review.started ? 'Continue' : 'Start'}
+                </Link>
+              </li>
+            ))}
+          </ul>
         </div>
       ) : config.type === 'currentFocus' && data.currentFocus ? (
         <div className="dashboard-current-focus">

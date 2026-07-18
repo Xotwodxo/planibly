@@ -25,6 +25,16 @@ describe('Phase 2A planning interface', () => {
     await database.delete();
   });
 
+  it('opens the seven-day planner at a controlled review start date', async () => {
+    render(
+      <MemoryRouter initialEntries={['/plan?start=2028-12-29']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByLabelText('Starting date')).toHaveValue('2028-12-29');
+  });
+
   it('shows appointments separately, summarizes event time, and reports overlaps', async () => {
     const today = localDateFromDate(new Date());
     await plannerRepository.createTask('Timed task', undefined, {

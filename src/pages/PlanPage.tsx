@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
 import { Button } from '../components/ui/Button';
 import { Dialog } from '../components/ui/Dialog';
@@ -35,19 +35,22 @@ type ReviewAction = 'today' | 'tomorrow' | 'date' | 'remove' | 'leave';
 export function PlanPage() {
   const { snapshot, isLoading, error } = usePlannerSnapshot();
   const { capacities, error: capacityError } = usePlanningCapacities();
+  const [searchParams] = useSearchParams();
   const today = localDateFromDate(new Date());
-  const [selectedDate, setSelectedDate] = useState(today);
-  const [horizonStart, setHorizonStart] = useState(today);
+  const requestedStart = searchParams.get('start');
+  const initialDate = requestedStart && isLocalDate(requestedStart) ? requestedStart : today;
+  const [selectedDate, setSelectedDate] = useState(initialDate);
+  const [horizonStart, setHorizonStart] = useState(initialDate);
   const [editingTask, setEditingTask] = useState<TaskRecord | null>(null);
   const [editingEvent, setEditingEvent] = useState<CalendarOccurrence | null>(null);
   const [routineRunId, setRoutineRunId] = useState<string>();
   const [announcement, setAnnouncement] = useState('');
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
-  const [bulkDate, setBulkDate] = useState(today);
+  const [bulkDate, setBulkDate] = useState(initialDate);
   const [reviewSelectedIds, setReviewSelectedIds] = useState<Set<string>>(new Set());
   const [reviewDismissed, setReviewDismissed] = useState(false);
   const [reviewAction, setReviewAction] = useState<ReviewAction>();
-  const [reviewDate, setReviewDate] = useState(today);
+  const [reviewDate, setReviewDate] = useState(initialDate);
 
   const groups = useMemo(
     () => agendaGroupsFromSnapshot(snapshot, selectedDate),
@@ -156,6 +159,9 @@ export function PlanPage() {
         <span className="eyebrow">Plan</span>
         <h1>Shape time with intention</h1>
         <p>Build a realistic day without turning an intention into a deadline.</p>
+        <Link className="button button--secondary" to="/reviews">
+          Open reviews
+        </Link>
       </header>
       {error || capacityError ? (
         <p role="alert" className="form-error">

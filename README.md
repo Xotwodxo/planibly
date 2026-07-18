@@ -1,12 +1,13 @@
 # Planibly
 
 Planibly is a zero-cost, private, offline-first personal planning PWA. This repository currently
-implements the installable foundation and the local planning system through **Phase 4B**. Alongside
+implements the installable foundation and the local planning system through **Phase 4C**. Alongside
 organisation, projects, search, recovery, planning, capacity, and the configurable Home dashboard,
 it now includes private internal calendars, appointments, recurring occurrences, reusable event
 templates, local ICS import/export, flexible personal routines with durable daily runs, and optional
-focused task starts with resilient countdowns. Live calendar synchronisation, reminders, provider
-accounts, Pomodoro cycles, reviews, scores, and streaks remain out of scope.
+focused task starts with resilient countdowns, plus optional morning, evening, and week-ahead
+reviews. Live calendar synchronisation, reminders, provider accounts, Pomodoro cycles, scores,
+streaks, and automatic scheduling remain out of scope.
 
 ## What Phase 0 contains
 
@@ -131,6 +132,22 @@ Routine items remain independent from tasks. Phase 4B deliberately defers routin
 because adding them would expand the released Phase 4A schema for a non-essential integration.
 See [Docs/phase-4b-architecture.md](Docs/phase-4b-architecture.md) for persistence and recovery rules.
 
+## What Phase 4C contains
+
+- Manually available Morning Summary, Evening Review, and seven-day Week Ahead flows
+- Controlled local dates with current task, event, routine, focus, project, deadline, and capacity data
+- Factual completed summaries without percentages, scores, streaks, comparisons, or guessed dates
+- Explicit task planning choices with shared preview, capacity guidance, validation, and transactional approval
+- Session-only dismissal, resumable unfinished reviews, deliberate finish and reopen, and calm local preferences
+- One optional Reviews dashboard card that preserves every existing custom dashboard layout
+- A responsive `/reviews` workspace linked from Home and Plan without changing the five-item mobile navigation
+- Dexie schema version 14 with review preferences and minimal review lifecycle/action-summary records
+
+Review availability times are evaluated only while Planibly is open. They are not notifications,
+alarms, or background scheduling. See
+[Docs/phase-4c-architecture.md](Docs/phase-4c-architecture.md) for lifecycle, query, migration, and
+transaction invariants.
+
 There is no backend, account, analytics, external AI, paid service, provider OAuth, or native iOS
 integration. ICS transfer creates a copy; later changes do not synchronise automatically.
 
@@ -233,5 +250,7 @@ See [Docs/phase-0-architecture.md](Docs/phase-0-architecture.md),
 [Docs/phase-3a-architecture.md](Docs/phase-3a-architecture.md), and
 [Docs/phase-3b-architecture.md](Docs/phase-3b-architecture.md), and
 [Docs/phase-3c-architecture.md](Docs/phase-3c-architecture.md), and
-[Docs/phase-4a-architecture.md](Docs/phase-4a-architecture.md) for the current architecture, data
+[Docs/phase-4a-architecture.md](Docs/phase-4a-architecture.md),
+[Docs/phase-4b-architecture.md](Docs/phase-4b-architecture.md), and
+[Docs/phase-4c-architecture.md](Docs/phase-4c-architecture.md) for the current architecture, data
 invariants, safety bounds, and manual device checks.

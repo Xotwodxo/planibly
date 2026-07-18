@@ -3,10 +3,11 @@
 ## Scope
 
 Read `Docs/planibly-pwa-product-specification.md` before product work and follow its phased roadmap.
-The current boundary is Phase 4B: optional task-starting details, prep checklists, focused starts,
-and a resilient single countdown. Do not add Pomodoro cycles, reminders, reviews, summaries,
-actual-duration analytics, pattern analysis, scores, streaks, automatic scheduling, Session Builder,
-Help Me Choose, cloud sync, or later-phase features until explicitly begun.
+The current boundary is Phase 4C: optional Morning Summary, Evening Review, Week Ahead, review
+preferences, and explicit previewed planning changes. Do not add notifications, alarms, email,
+widgets, Pomodoro cycles, actual-duration analytics, pattern analysis, scores, streaks, mood or
+energy questions, automatic scheduling/rescheduling/skipping, Session Builder, Help Me Choose,
+cloud sync, or Phase 5 features until explicitly begun.
 
 Planibly must remain free, private, local-first, and useful without a backend. Do not add accounts,
 analytics, advertising, paid services, external AI, native iOS claims, or silent network reporting.

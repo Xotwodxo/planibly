@@ -9,6 +9,7 @@ import { NotFoundPage } from './pages/NotFoundPage';
 import { PlanPage } from './pages/PlanPage';
 import { RoutinesPage } from './pages/RoutinesPage';
 import { FocusPage } from './pages/FocusPage';
+import { ReviewsPage } from './pages/ReviewsPage';
 
 export function App() {
   return (
@@ -20,6 +21,7 @@ export function App() {
         <Route path="calendar" element={<CalendarPage />} />
         <Route path="lists" element={<ListsPage />} />
         <Route path="routines" element={<RoutinesPage />} />
+        <Route path="reviews" element={<ReviewsPage />} />
         <Route
           path="insights"
           element={

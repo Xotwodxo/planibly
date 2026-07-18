@@ -264,6 +264,8 @@ export function dashboardCardDataFromSnapshot(
     case 'currentFocus':
       currentFocus = currentFocusFromSnapshot(snapshot, now);
       break;
+    case 'reviews':
+      break;
     case 'quickAdd':
       break;
   }
@@ -351,6 +353,7 @@ export function dashboardCardLink(type: DashboardCardType): string | undefined {
     projectNextActions: '/lists',
     recentlyCompleted: '/lists?smart=completed',
     currentRoutine: '/routines',
+    reviews: '/reviews',
   };
   return links[type];
 }
@@ -368,6 +371,7 @@ export function dashboardEmptyMessage(type: DashboardCardType): string {
     recentlyCompleted: 'Completed tasks will appear here.',
     currentRoutine: 'No routine is waiting for today.',
     currentFocus: 'No task is currently focused.',
+    reviews: 'Reviews remain available whenever you want them.',
   };
   return messages[type];
 }

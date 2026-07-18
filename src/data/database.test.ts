@@ -38,6 +38,8 @@ describe('PlaniblyDatabase', () => {
       'planningCapacities',
       'recurrenceExceptions',
       'recurrenceRules',
+      'reviewPreferences',
+      'reviewRecords',
       'routineItems',
       'routineOccurrenceAdjustments',
       'routineRunItems',
@@ -171,7 +173,7 @@ describe('PlaniblyDatabase', () => {
     expect(await upgraded.tags.count()).toBe(0);
     expect(await upgraded.taskTags.count()).toBe(0);
     expect(await upgraded.taskRelationships.count()).toBe(0);
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '13' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '14' });
 
     upgraded.close();
     await upgraded.delete();
@@ -223,7 +225,7 @@ describe('PlaniblyDatabase', () => {
       createdAt: timestamp,
       modifiedAt: timestamp,
     });
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '13' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '14' });
 
     upgraded.close();
     await upgraded.delete();
@@ -269,7 +271,7 @@ describe('PlaniblyDatabase', () => {
     expect(task?.deadlineDate).toBeUndefined();
     expect(task?.flexibleStartDate).toBeUndefined();
     expect(task?.exactStartTime).toBeUndefined();
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '13' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '14' });
 
     expect(task?.completedAt).toBeUndefined();
 
@@ -409,7 +411,7 @@ describe('PlaniblyDatabase', () => {
     });
     expect(await upgraded.plannedPlacements.get('unplanned-v7')).toBeUndefined();
     expect(await upgraded.planningCapacities.count()).toBe(0);
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '13' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '14' });
 
     upgraded.close();
     await upgraded.delete();
@@ -549,7 +551,7 @@ describe('PlaniblyDatabase', () => {
     expect(await upgraded.recurrenceRules.count()).toBe(0);
     expect(await upgraded.recurrenceExceptions.count()).toBe(0);
     expect(await upgraded.eventTemplates.count()).toBe(0);
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '13' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '14' });
     upgraded.close();
     await upgraded.delete();
   });
@@ -619,7 +621,7 @@ describe('PlaniblyDatabase', () => {
     expect(await upgraded.calendarImportSources.count()).toBe(0);
     expect(await upgraded.calendarImportBatches.count()).toBe(0);
     expect(await upgraded.externalEventMappings.count()).toBe(0);
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '13' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '14' });
     upgraded.close();
     await upgraded.delete();
   });
@@ -715,7 +717,7 @@ describe('PlaniblyDatabase', () => {
     expect(await upgraded.routineRuns.count()).toBe(0);
     expect(await upgraded.routineRunItems.count()).toBe(0);
     expect(await upgraded.routineOccurrenceAdjustments.count()).toBe(0);
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '13' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '14' });
     upgraded.close();
     await upgraded.delete();
   });
@@ -824,7 +826,76 @@ describe('PlaniblyDatabase', () => {
     expect(await upgraded.taskStartingDetails.count()).toBe(0);
     expect(await upgraded.taskPrepItems.count()).toBe(0);
     expect(await upgraded.activeFocus.count()).toBe(0);
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '13' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '14' });
+    upgraded.close();
+    await upgraded.delete();
+  });
+
+  it('upgrades Phase 4B v13 data append-only and creates recoverable review defaults', async () => {
+    const name = `planibly-v13-reviews-${crypto.randomUUID()}`;
+    const legacy = new Dexie(name);
+    legacy.version(13).stores(schemaVersions.find((schema) => schema.version === 13)!.stores);
+    await legacy.open();
+    const timestamp = '2026-07-18T09:00:00.000Z';
+    await legacy.table('metadata').put({ key: 'schemaVersion', value: '13', updatedAt: timestamp });
+    await legacy.table('tasks').put({
+      id: 'v13-task',
+      listId: INBOX_LIST_ID,
+      title: 'Preserved focused task',
+      status: 'inbox',
+      order: 0,
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    await legacy.table('taskStartingDetails').put({
+      id: 'v13-details',
+      taskId: 'v13-task',
+      whyItMatters: 'Fixture motivation',
+      preferredStartStyle: 'gentle',
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    await legacy.table('taskPrepItems').put({
+      id: 'v13-prep',
+      taskId: 'v13-task',
+      title: 'Open the fixture',
+      completed: false,
+      order: 0,
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    await legacy.table('activeFocus').put({
+      id: 'd0000000-0000-4000-8000-000000000001',
+      taskId: 'v13-task',
+      startStyle: 'gentle',
+      startedAt: timestamp,
+      fullDetailsRevealed: false,
+      countdownSource: 'none',
+      countdownState: 'idle',
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    legacy.close();
+
+    const upgraded = new PlaniblyDatabase(name);
+    await initializeDatabase(upgraded);
+    await expect(upgraded.tasks.get('v13-task')).resolves.toMatchObject({
+      title: 'Preserved focused task',
+    });
+    await expect(upgraded.taskStartingDetails.get('v13-details')).resolves.toMatchObject({
+      preferredStartStyle: 'gentle',
+    });
+    await expect(upgraded.taskPrepItems.get('v13-prep')).resolves.toMatchObject({
+      title: 'Open the fixture',
+    });
+    await expect(
+      upgraded.activeFocus.get('d0000000-0000-4000-8000-000000000001'),
+    ).resolves.toMatchObject({ taskId: 'v13-task' });
+    expect(await upgraded.reviewRecords.count()).toBe(0);
+    await expect(
+      upgraded.reviewPreferences.get('e0000000-0000-4000-8000-000000000001'),
+    ).resolves.toMatchObject({ showOnHome: false, showCompletedSummary: true });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '14' });
     upgraded.close();
     await upgraded.delete();
   });

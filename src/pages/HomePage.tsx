@@ -28,12 +28,14 @@ import { useDashboardState } from '../features/dashboard/useDashboardState';
 import { TaskEditorDialog } from '../features/planner/TaskEditorDialog';
 import { usePlannerSnapshot } from '../features/planner/usePlannerSnapshot';
 import { useUnsavedChanges } from '../features/planner/unsavedChanges';
+import { useReviewState } from '../features/reviews/useReviewState';
 
 type Confirmation = 'cancel' | 'delete' | 'restoreDefaults' | null;
 
 export function HomePage() {
   const { snapshot, isLoading: plannerLoading, error: plannerError } = usePlannerSnapshot();
   const { state, isLoading: dashboardLoading, error: dashboardError } = useDashboardState();
+  const { state: reviewState, isLoading: reviewLoading, error: reviewError } = useReviewState();
   const [isCustomizing, setIsCustomizing] = useState(false);
   const [draftCards, setDraftCards] = useState<DashboardCardConfig[]>([]);
   const [draftName, setDraftName] = useState('');
@@ -59,7 +61,7 @@ export function HomePage() {
     [activeLayout, snapshot, today],
   );
 
-  if (plannerLoading || dashboardLoading || !activeLayout) {
+  if (plannerLoading || dashboardLoading || reviewLoading || !activeLayout) {
     return <p role="status">Opening your dashboard&hellip;</p>;
   }
   const currentLayout = activeLayout;
@@ -138,7 +140,7 @@ export function HomePage() {
   const visibleCards = (isCustomizing ? draftCards : currentLayout.cards)
     .filter((cardConfig) => !cardConfig.hidden)
     .sort((left, right) => left.order - right.order);
-  const error = plannerError ?? dashboardError ?? actionError;
+  const error = plannerError ?? dashboardError ?? reviewError ?? actionError;
 
   return (
     <div className="page page--home-dashboard">
@@ -156,6 +158,9 @@ export function HomePage() {
           <div className="dashboard-heading__controls">
             <Link className="button button--secondary" to="/routines">
               Routines
+            </Link>
+            <Link className="button button--secondary" to="/reviews">
+              Reviews
             </Link>
             <label className="field dashboard-layout-select">
               <span>Dashboard layout</span>
@@ -270,6 +275,7 @@ export function HomePage() {
             onComplete={completeTask}
             onEdit={setEditingTask}
             onEditEvent={setEditingEvent}
+            reviewState={reviewState}
           />
         ))}
       </div>

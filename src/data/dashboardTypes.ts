@@ -1,4 +1,4 @@
-export const DASHBOARD_STARTER_DATA_VERSION = 3;
+export const DASHBOARD_STARTER_DATA_VERSION = 4;
 
 export const DASHBOARD_CARD_TYPES = [
   'quickAdd',
@@ -12,6 +12,7 @@ export const DASHBOARD_CARD_TYPES = [
   'recentlyCompleted',
   'currentRoutine',
   'currentFocus',
+  'reviews',
 ] as const;
 
 export type DashboardCardType = (typeof DASHBOARD_CARD_TYPES)[number];
@@ -86,6 +87,7 @@ export const STARTER_DASHBOARD_LAYOUTS: readonly StarterDashboardLayout[] = [
       card('blockedTasks', 'standard', 8, true),
       card('recentlyCompleted', 'compact', 9),
       card('currentFocus', 'standard', 10, true),
+      card('reviews', 'standard', 11),
     ],
   },
   {
@@ -105,6 +107,7 @@ export const STARTER_DASHBOARD_LAYOUTS: readonly StarterDashboardLayout[] = [
       card('upcomingDeadlines', 'standard', 8, true),
       card('unscheduled', 'standard', 9, true),
       card('currentRoutine', 'standard', 10, true),
+      card('reviews', 'standard', 11, true),
     ],
   },
   {
@@ -124,6 +127,7 @@ export const STARTER_DASHBOARD_LAYOUTS: readonly StarterDashboardLayout[] = [
       card('recentlyCompleted', 'compact', 8, true),
       card('currentRoutine', 'standard', 9, true),
       card('currentFocus', 'standard', 10, true),
+      card('reviews', 'standard', 11, true),
     ],
   },
 ] as const;
@@ -140,4 +144,5 @@ export const DASHBOARD_CARD_LABELS: Record<DashboardCardType, string> = {
   recentlyCompleted: 'Recently Completed',
   currentRoutine: 'Current Routine',
   currentFocus: 'Current Focus',
+  reviews: 'Reviews',
 };
