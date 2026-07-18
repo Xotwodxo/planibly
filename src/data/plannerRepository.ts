@@ -3,6 +3,8 @@ import { agendaGroupForTask } from './agenda';
 import { isValidCalendarEventRecord } from './calendar';
 import { isValidEventTemplateRecord } from './recurrence';
 import { isValidRoutineItemRecord, isValidRoutineRecord } from './routine';
+import { isValidActiveFocusRecord, isValidStartingDetailsRecord } from './focus';
+import { ACTIVE_FOCUS_ID } from './focusTypes';
 import {
   localDateFromDate,
   planningOverviewFromSnapshot,
@@ -100,7 +102,10 @@ function requiredText(value: string, label: string): string {
   return trimmed;
 }
 
-type PlannerDeletionEntityKind = Exclude<DeletionEntityKind, 'routine' | 'routineItem'>;
+type PlannerDeletionEntityKind = Exclude<
+  DeletionEntityKind,
+  'routine' | 'routineItem' | 'prepItem'
+>;
 
 function normalizeTagName(value: string): string {
   return requiredText(value, 'Tag name').toLocaleLowerCase();
@@ -143,6 +148,9 @@ export class PlannerRepository {
       routineRuns,
       routineRunItems,
       routineOccurrenceAdjustments,
+      taskStartingDetails,
+      taskPrepItems,
+      activeFocusRecords,
     ] = await Promise.all([
       this.db.areas.toArray(),
       this.db.lists.toArray(),
@@ -163,6 +171,9 @@ export class PlannerRepository {
       this.db.routineRuns.toArray(),
       this.db.routineRunItems.toArray(),
       this.db.routineOccurrenceAdjustments.toArray(),
+      this.db.taskStartingDetails.toArray(),
+      this.db.taskPrepItems.toArray(),
+      this.db.activeFocus.toArray(),
     ]);
     const activeTasks = tasks.filter(active).sort(byOrder);
     const activeTaskIds = new Set(activeTasks.map((task) => task.id));
@@ -176,6 +187,9 @@ export class PlannerRepository {
       .sort(byOrder);
     const activeRoutineItemIds = new Set(activeRoutineItems.map((item) => item.id));
     const activeTagIds = new Set(activeTags.map((tag) => tag.id));
+    const activeListIds = new Set(
+      lists.filter((list) => active(list) && list.archivedAt === undefined).map((list) => list.id),
+    );
     const activeRelationships = taskRelationships.filter(
       (relationship) =>
         active(relationship) &&
@@ -257,6 +271,27 @@ export class PlannerRepository {
       routineRuns: routineRuns.sort((left, right) => right.localDate.localeCompare(left.localDate)),
       routineRunItems: routineRunItems.sort(byOrder),
       routineOccurrenceAdjustments,
+      taskStartingDetails: taskStartingDetails.filter(
+        (details) => activeTaskIds.has(details.taskId) && isValidStartingDetailsRecord(details),
+      ),
+      taskPrepItems: taskPrepItems
+        .filter(
+          (item) =>
+            active(item) &&
+            activeTaskIds.has(item.taskId) &&
+            item.title.trim().length > 0 &&
+            Number.isInteger(item.order),
+        )
+        .sort(byOrder),
+      activeFocus: activeFocusRecords.find((focus) => {
+        const task = activeTasks.find((candidate) => candidate.id === focus.taskId);
+        return (
+          isValidActiveFocusRecord(focus) &&
+          task !== undefined &&
+          task.status !== 'completed' &&
+          activeListIds.has(task.listId)
+        );
+      }),
       blockedByTaskId,
       projectProgressByListId: Object.fromEntries(
         lists
@@ -297,6 +332,7 @@ export class PlannerRepository {
         .sort(byDeletedAtDescending),
       deletedRoutines: routines.filter((routine) => !active(routine)).sort(byDeletedAtDescending),
       deletedRoutineItems: routineItems.filter((item) => !active(item)).sort(byDeletedAtDescending),
+      deletedPrepItems: taskPrepItems.filter((item) => !active(item)).sort(byDeletedAtDescending),
     };
   }
 
@@ -347,6 +383,8 @@ export class PlannerRepository {
         this.db.taskTags,
         this.db.taskRelationships,
         this.db.plannedPlacements,
+        this.db.taskPrepItems,
+        this.db.activeFocus,
       ],
       async () => {
         const lists = (await this.db.lists.where('areaId').equals(id).toArray()).filter(active);
@@ -485,10 +523,15 @@ export class PlannerRepository {
     if (list.mode !== 'project') throw new Error('Only projects can be archived.');
     const now = this.now();
     const groupId = this.createId();
-    await this.db.lists.update(id, {
-      archivedAt: now,
-      deletionGroupId: groupId,
-      modifiedAt: now,
+    await this.db.transaction('rw', this.db.lists, this.db.tasks, this.db.activeFocus, async () => {
+      await this.db.lists.update(id, {
+        archivedAt: now,
+        deletionGroupId: groupId,
+        modifiedAt: now,
+      });
+      const focus = await this.db.activeFocus.get(ACTIVE_FOCUS_ID);
+      const focusedTask = focus ? await this.db.tasks.get(focus.taskId) : undefined;
+      if (focusedTask?.listId === id) await this.db.activeFocus.delete(ACTIVE_FOCUS_ID);
     });
     this.notify();
     return {
@@ -534,6 +577,8 @@ export class PlannerRepository {
         this.db.taskSteps,
         this.db.taskTags,
         this.db.taskRelationships,
+        this.db.taskPrepItems,
+        this.db.activeFocus,
       ],
       async () => {
         const tasks = (await this.db.tasks.where('listId').equals(id).toArray()).filter(active);
@@ -648,11 +693,15 @@ export class PlannerRepository {
     }
     const list = await this.requireActiveList(task.listId);
     const now = this.now();
-    await this.db.tasks.update(id, {
-      status: completed ? 'completed' : list.systemType === 'inbox' ? 'inbox' : 'available',
-      completedAt: completed ? now : undefined,
-      completedClearedAt: undefined,
-      modifiedAt: now,
+    await this.db.transaction('rw', this.db.tasks, this.db.activeFocus, async () => {
+      await this.db.tasks.update(id, {
+        status: completed ? 'completed' : list.systemType === 'inbox' ? 'inbox' : 'available',
+        completedAt: completed ? now : undefined,
+        completedClearedAt: undefined,
+        modifiedAt: now,
+      });
+      const focus = await this.db.activeFocus.get(ACTIVE_FOCUS_ID);
+      if (completed && focus?.taskId === id) await this.db.activeFocus.delete(ACTIVE_FOCUS_ID);
     });
     this.notify();
   }
@@ -663,10 +712,14 @@ export class PlannerRepository {
     const groupId = this.createId();
     await this.db.transaction(
       'rw',
-      this.db.tasks,
-      this.db.taskSteps,
-      this.db.taskTags,
-      this.db.taskRelationships,
+      [
+        this.db.tasks,
+        this.db.taskSteps,
+        this.db.taskTags,
+        this.db.taskRelationships,
+        this.db.taskPrepItems,
+        this.db.activeFocus,
+      ],
       () => this.softDeleteTasks([id], now, groupId),
     );
     this.notify();
@@ -1025,6 +1078,7 @@ export class PlannerRepository {
         this.db.taskTags,
         this.db.taskRelationships,
         this.db.plannedPlacements,
+        this.db.taskPrepItems,
       ],
       async () => {
         const parentLabels = await this.getDeletedParentLabels(kind, id);
@@ -1069,6 +1123,7 @@ export class PlannerRepository {
         this.db.taskTags,
         this.db.taskRelationships,
         this.db.plannedPlacements,
+        this.db.taskPrepItems,
       ],
       async () => {
         if (receipt?.operation === 'archive') {
@@ -1083,14 +1138,15 @@ export class PlannerRepository {
           });
           return;
         }
-        const [areas, lists, tasks, steps, assignments] = await Promise.all([
+        const [areas, lists, tasks, steps, assignments, prepItems] = await Promise.all([
           this.db.areas.where('deletionGroupId').equals(groupId).toArray(),
           this.db.lists.where('deletionGroupId').equals(groupId).toArray(),
           this.db.tasks.where('deletionGroupId').equals(groupId).toArray(),
           this.db.taskSteps.where('deletionGroupId').equals(groupId).toArray(),
           this.db.taskTags.where('deletionGroupId').equals(groupId).toArray(),
+          this.db.taskPrepItems.where('deletionGroupId').equals(groupId).toArray(),
         ]);
-        if (areas.length + lists.length + tasks.length + steps.length === 0) {
+        if (areas.length + lists.length + tasks.length + steps.length + prepItems.length === 0) {
           throw new Error('This deletion can no longer be undone.');
         }
         await Promise.all([
@@ -1100,6 +1156,9 @@ export class PlannerRepository {
           ...steps.map((step) => this.db.taskSteps.update(step.id, this.restoredFields(now))),
           ...assignments.map((assignment) =>
             this.db.taskTags.update(assignment.id, this.restoredFields(now)),
+          ),
+          ...prepItems.map((item) =>
+            this.db.taskPrepItems.update(item.id, this.restoredFields(now)),
           ),
         ]);
         if (receipt?.kind === 'area' && receipt.movedListIds?.length) {
@@ -1129,6 +1188,9 @@ export class PlannerRepository {
         this.db.taskTags,
         this.db.taskRelationships,
         this.db.plannedPlacements,
+        this.db.taskStartingDetails,
+        this.db.taskPrepItems,
+        this.db.activeFocus,
       ],
       async () => {
         const areaIds = new Set<string>();
@@ -1172,13 +1234,14 @@ export class PlannerRepository {
   }
 
   public async emptyRecentlyDeleted(): Promise<number> {
-    const [areas, lists, tasks, steps] = await Promise.all([
+    const [areas, lists, tasks, steps, prepItems] = await Promise.all([
       this.db.areas.filter((area) => !active(area)).toArray(),
       this.db.lists.filter((list) => !active(list)).toArray(),
       this.db.tasks.filter((task) => !active(task)).toArray(),
       this.db.taskSteps.filter((step) => !active(step)).toArray(),
+      this.db.taskPrepItems.filter((item) => !active(item)).toArray(),
     ]);
-    const count = areas.length + lists.length + tasks.length + steps.length;
+    const count = areas.length + lists.length + tasks.length + steps.length + prepItems.length;
     if (count === 0) return 0;
     await this.db.transaction(
       'rw',
@@ -1191,6 +1254,9 @@ export class PlannerRepository {
         this.db.taskTags,
         this.db.taskRelationships,
         this.db.plannedPlacements,
+        this.db.taskStartingDetails,
+        this.db.taskPrepItems,
+        this.db.activeFocus,
       ],
       async () => {
         await this.purgeIds(
@@ -1202,6 +1268,7 @@ export class PlannerRepository {
         await this.db.tags.filter((tag) => !active(tag)).delete();
         await this.db.taskRelationships.filter((relationship) => !active(relationship)).delete();
         await this.db.taskTags.filter((assignment) => !active(assignment)).delete();
+        await this.db.taskPrepItems.filter((item) => !active(item)).delete();
       },
     );
     this.notify();
@@ -1278,10 +1345,11 @@ export class PlannerRepository {
   }
 
   private async restoreTaskDetails(task: TaskRecord, now: string): Promise<void> {
-    const [steps, assignments, tags] = await Promise.all([
+    const [steps, assignments, tags, prepItems] = await Promise.all([
       this.db.taskSteps.where('taskId').equals(task.id).toArray(),
       this.db.taskTags.where('taskId').equals(task.id).toArray(),
       this.db.tags.toArray(),
+      this.db.taskPrepItems.where('taskId').equals(task.id).toArray(),
     ]);
     const activeTagIds = new Set(tags.filter(active).map((tag) => tag.id));
     await Promise.all([
@@ -1293,6 +1361,9 @@ export class PlannerRepository {
           (assignment) => this.sameDeletion(assignment, task) && activeTagIds.has(assignment.tagId),
         )
         .map((assignment) => this.db.taskTags.update(assignment.id, this.restoredFields(now))),
+      ...prepItems
+        .filter((item) => this.sameDeletion(item, task))
+        .map((item) => this.db.taskPrepItems.update(item.id, this.restoredFields(now))),
     ]);
     await this.restoreTaskRelationships(task, now);
   }
@@ -1337,9 +1408,12 @@ export class PlannerRepository {
     taskIds: Set<string>,
     stepIds: Set<string>,
   ): Promise<void> {
-    const [assignments, relationships] = await Promise.all([
+    const [assignments, relationships, prepItems, startingDetails, focus] = await Promise.all([
       this.db.taskTags.toArray(),
       this.db.taskRelationships.toArray(),
+      this.db.taskPrepItems.toArray(),
+      this.db.taskStartingDetails.toArray(),
+      this.db.activeFocus.get(ACTIVE_FOCUS_ID),
     ]);
     await Promise.all([
       ...assignments
@@ -1352,6 +1426,15 @@ export class PlannerRepository {
             taskIds.has(relationship.successorTaskId),
         )
         .map((relationship) => this.db.taskRelationships.delete(relationship.id)),
+      ...prepItems
+        .filter((item) => taskIds.has(item.taskId))
+        .map((item) => this.db.taskPrepItems.delete(item.id)),
+      ...startingDetails
+        .filter((details) => taskIds.has(details.taskId))
+        .map((details) => this.db.taskStartingDetails.delete(details.id)),
+      focus && taskIds.has(focus.taskId)
+        ? this.db.activeFocus.delete(ACTIVE_FOCUS_ID)
+        : Promise.resolve(),
       this.db.taskSteps.bulkDelete([...stepIds]),
       this.db.plannedPlacements
         .where('taskId')
@@ -1426,10 +1509,12 @@ export class PlannerRepository {
   private async softDeleteTasks(taskIds: string[], now: string, groupId: string): Promise<void> {
     if (taskIds.length === 0) return;
     const taskIdSet = new Set(taskIds);
-    const [steps, assignments, relationships] = await Promise.all([
+    const [steps, assignments, relationships, prepItems, focus] = await Promise.all([
       this.db.taskSteps.toArray(),
       this.db.taskTags.toArray(),
       this.db.taskRelationships.toArray(),
+      this.db.taskPrepItems.toArray(),
+      this.db.activeFocus.get(ACTIVE_FOCUS_ID),
     ]);
     await Promise.all([
       ...taskIds.map((id) =>
@@ -1471,6 +1556,18 @@ export class PlannerRepository {
             modifiedAt: now,
           }),
         ),
+      ...prepItems
+        .filter((item) => active(item) && taskIdSet.has(item.taskId))
+        .map((item) =>
+          this.db.taskPrepItems.update(item.id, {
+            deletedAt: now,
+            deletionGroupId: groupId,
+            modifiedAt: now,
+          }),
+        ),
+      focus && taskIdSet.has(focus.taskId)
+        ? this.db.activeFocus.delete(ACTIVE_FOCUS_ID)
+        : Promise.resolve(),
     ]);
   }
 

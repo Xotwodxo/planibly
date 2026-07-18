@@ -61,11 +61,15 @@ function snapshot(tasks: TaskRecord[] = []): PlannerSnapshot {
     routineRuns: [],
     routineRunItems: [],
     routineOccurrenceAdjustments: [],
+    taskStartingDetails: [],
+    taskPrepItems: [],
+    activeFocus: undefined,
     deletedCalendars: [],
     deletedCalendarEvents: [],
     deletedEventTemplates: [],
     deletedRoutines: [],
     deletedRoutineItems: [],
+    deletedPrepItems: [],
     blockedByTaskId: {},
     projectProgressByListId: {},
     deletedAreas: [],
@@ -93,14 +97,15 @@ describe('dashboard configuration', () => {
       { type: 'futureCard', size: 'wide', order: 0, hidden: false },
     ]);
 
-    expect(normalized).toHaveLength(10);
+    expect(normalized).toHaveLength(11);
     expect(normalized.find((card) => card.type === 'today')).toMatchObject({
       size: 'standard',
       hidden: true,
     });
     expect(normalized.find((card) => card.type === 'quickAdd')?.hidden).toBe(false);
     expect(normalized.find((card) => card.type === 'currentRoutine')?.hidden).toBe(true);
-    expect(normalized.map((card) => card.order)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(normalized.find((card) => card.type === 'currentFocus')?.hidden).toBe(true);
+    expect(normalized.map((card) => card.order)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   });
 
   it('reorders, hides, restores, and resizes cards without mutating the source', () => {

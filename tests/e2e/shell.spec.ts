@@ -898,6 +898,100 @@ test('keeps the routines workspace contained at large text', async ({ page }) =>
   await expect(page.getByRole('region', { name: 'All Routines' })).toBeVisible();
 });
 
+test('persists a mobile focused start and paused countdown through offline reopening', async ({
+  page,
+  context,
+}, testInfo) => {
+  test.skip(!testInfo.project.name.includes('mobile'), 'Mobile-only Phase 4B focus flow');
+  await page.goto('/planibly/lists');
+  await page.locator('.quick-add-fab').click();
+  const quickAdd = page.getByRole('dialog', { name: 'Quick Add' });
+  await quickAdd.getByRole('textbox', { name: 'Task title' }).fill('Focused mobile task');
+  await quickAdd.getByRole('button', { name: 'Save', exact: true }).click();
+
+  await page.getByRole('button', { name: 'Edit Focused mobile task' }).click();
+  const editor = page.getByRole('dialog', { name: 'Edit task' });
+  await editor.getByLabel('Why this task matters').fill('A calm start makes this easier.');
+  await editor.getByLabel('Preferred start style').selectOption('oneThing');
+  await editor.getByLabel('Default countdown (minutes)').fill('12');
+  await editor.getByRole('textbox', { name: 'New prep item title' }).fill('Open the notes');
+  await editor.getByRole('button', { name: 'Add prep' }).click();
+  await editor.getByRole('textbox', { name: 'New step title' }).fill('Write the opening line');
+  await editor.getByRole('button', { name: 'Add', exact: true }).click();
+  await editor.getByRole('button', { name: 'Save', exact: true }).click();
+
+  await page.getByRole('link', { name: 'Start Focused mobile task' }).click();
+  await expect(page).toHaveURL(/\/planibly\/focus\//);
+  await expect(page.getByRole('heading', { level: 1, name: 'Focused mobile task' })).toBeVisible();
+  await expect(page.getByRole('radio', { name: /^One Thing/ })).toBeChecked();
+  await expect(page.getByText('A calm start makes this easier.')).toBeHidden();
+  await page.getByRole('button', { name: 'Begin Task' }).click();
+  await expect(page.getByRole('heading', { name: 'Write the opening line' })).toBeVisible();
+  await page.getByRole('button', { name: /Use saved \(12 min\)/ }).click();
+  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await expect(page.getByLabel(/Countdown running/)).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Write the opening line' })).toBeVisible();
+  await page.getByRole('button', { name: 'Pause' }).click();
+  await expect(page.getByLabel(/Countdown paused/)).toBeVisible();
+  await page.getByRole('button', { name: 'Show Full Task' }).click();
+  await page.getByRole('checkbox', { name: 'Mark ready Open the notes' }).click();
+  await expect(page.getByRole('checkbox', { name: 'Mark not ready Open the notes' })).toBeChecked();
+
+  await page.evaluate(async () => navigator.serviceWorker.ready);
+  await context.setOffline(true);
+  try {
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Focused mobile task' }),
+    ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Resume' })).toBeVisible();
+    await expect(
+      page.getByRole('checkbox', { name: 'Mark not ready Open the notes' }),
+    ).toBeChecked();
+    await expect(page.getByRole('checkbox', { name: 'Write the opening line' })).toBeVisible();
+  } finally {
+    await context.setOffline(false);
+  }
+});
+
+test('keeps focused start contained at 200% text on mobile and wider screens', async ({ page }) => {
+  await page.goto('/planibly/lists');
+  await page.locator('.quick-add-fab').click();
+  const quickAdd = page.getByRole('dialog', { name: 'Quick Add' });
+  await quickAdd.getByRole('textbox', { name: 'Task title' }).fill('Contained focus');
+  await quickAdd.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.getByRole('link', { name: 'Start Contained focus' }).click();
+  await page.getByRole('button', { name: 'Begin Task' }).click();
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '200%';
+  });
+  const overflow = await page.evaluate(() => {
+    const clientWidth = document.documentElement.clientWidth;
+    return {
+      clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+      offenders: Array.from(document.querySelectorAll<HTMLElement>('body *'))
+        .map((element) => {
+          const rectangle = element.getBoundingClientRect();
+          return {
+            element: `${element.tagName.toLowerCase()}.${element.className}`,
+            left: Math.round(rectangle.left),
+            right: Math.round(rectangle.right),
+          };
+        })
+        .filter((element) => element.right > clientWidth + 1 || element.left < -1)
+        .slice(0, 12),
+    };
+  });
+  expect(overflow.scrollWidth, JSON.stringify(overflow.offenders)).toBeLessThanOrEqual(
+    overflow.clientWidth,
+  );
+  await expect(page.getByRole('button', { name: 'Leave focus' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Focus controls' })).toBeVisible();
+});
+
 test('reloads the application shell while offline', async ({ page, context }) => {
   await page.goto(githubPagesBasePath);
   await expect(page.getByRole('heading', { name: 'A calm view of what matters' })).toBeVisible();

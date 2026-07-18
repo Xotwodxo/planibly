@@ -851,6 +851,15 @@ function AgendaTaskRow({
         ) : null}
       </div>
       <div className="plan-task__actions">
+        {task.status !== 'completed' ? (
+          <Link
+            className="button button--quiet"
+            to={`/focus/${encodeURIComponent(task.id)}`}
+            aria-label={`Start ${task.title}`}
+          >
+            Start
+          </Link>
+        ) : null}
         <Button variant="quiet" type="button" onClick={() => onEdit(task)}>
           Edit
         </Button>
@@ -992,6 +1001,13 @@ function PlanningSourceTask({
       >
         Plan
       </Button>
+      <Link
+        className="button button--quiet"
+        to={`/focus/${encodeURIComponent(task.id)}`}
+        aria-label={`Start ${task.title}`}
+      >
+        Start
+      </Link>
     </li>
   );
 }

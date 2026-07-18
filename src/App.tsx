@@ -8,10 +8,12 @@ import { ListsPage } from './pages/ListsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { PlanPage } from './pages/PlanPage';
 import { RoutinesPage } from './pages/RoutinesPage';
+import { FocusPage } from './pages/FocusPage';
 
 export function App() {
   return (
     <Routes>
+      <Route path="focus/:taskId" element={<FocusPage />} />
       <Route element={<AppShell />}>
         <Route index element={<HomePage />} />
         <Route path="plan" element={<PlanPage />} />

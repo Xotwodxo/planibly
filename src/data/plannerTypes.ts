@@ -6,6 +6,11 @@ import type {
   RoutineRunRecord,
   RoutineVariantRecord,
 } from './routineTypes';
+import type {
+  ActiveFocusRecord,
+  TaskPrepItemRecord,
+  TaskStartingDetailsRecord,
+} from './focusTypes';
 
 export const STARTER_DATA_VERSION = 1;
 
@@ -313,7 +318,8 @@ export type DeletionEntityKind =
   | 'occurrence'
   | 'template'
   | 'routine'
-  | 'routineItem';
+  | 'routineItem'
+  | 'prepItem';
 
 export type DeletionReceipt = {
   groupId: string;
@@ -401,6 +407,9 @@ export type PlannerSnapshot = {
   routineRuns: RoutineRunRecord[];
   routineRunItems: RoutineRunItemRecord[];
   routineOccurrenceAdjustments: RoutineOccurrenceAdjustmentRecord[];
+  taskStartingDetails: TaskStartingDetailsRecord[];
+  taskPrepItems: TaskPrepItemRecord[];
+  activeFocus?: ActiveFocusRecord;
   blockedByTaskId: Record<string, string[]>;
   projectProgressByListId: Record<string, ProjectProgress>;
   deletedAreas: AreaRecord[];
@@ -412,4 +421,5 @@ export type PlannerSnapshot = {
   deletedEventTemplates: EventTemplateRecord[];
   deletedRoutines: RoutineRecord[];
   deletedRoutineItems: RoutineItemRecord[];
+  deletedPrepItems: TaskPrepItemRecord[];
 };

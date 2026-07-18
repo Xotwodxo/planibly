@@ -8,6 +8,7 @@ import { plannerRepository } from '../data/plannerRepository';
 import { calendarRepository } from '../data/calendarRepository';
 import { DEFAULT_CALENDAR_ID } from '../data/plannerTypes';
 import { routineRepository } from '../data/routineRepository';
+import { focusRepository } from '../data/focusRepository';
 
 async function resetDatabase() {
   database.close();
@@ -358,5 +359,44 @@ describe('ListsPage', () => {
         (item) => !item.deletedAt,
       ),
     ).toBe(true);
+  });
+
+  it('edits optional starting details and a distinct prep checklist in the task editor', async () => {
+    const task = await plannerRepository.createTask('Start supported task');
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={[`/lists?task=${task.id}`]}>
+        <App />
+      </MemoryRouter>,
+    );
+    const editor = await screen.findByRole('dialog', { name: 'Edit task' });
+    await user.type(within(editor).getByLabelText('Why this task matters'), 'It clears the path.');
+    await user.selectOptions(within(editor).getByLabelText('Preferred start style'), 'oneThing');
+    await user.type(within(editor).getByLabelText('Default countdown (minutes)'), '12');
+
+    const prepSection = within(editor)
+      .getByRole('heading', { name: 'Prep checklist' })
+      .closest('section')!;
+    await user.type(within(prepSection).getByPlaceholderText('Add preparation'), 'Open notes');
+    await user.click(within(prepSection).getByRole('button', { name: 'Add prep' }));
+    const prepCheckbox = await within(prepSection).findByRole('checkbox', {
+      name: 'Mark ready Open notes',
+    });
+    await user.click(prepCheckbox);
+    expect((await database.tasks.get(task.id))?.status).toBe('inbox');
+    expect(await database.taskSteps.where('taskId').equals(task.id).count()).toBe(0);
+
+    const taskForm = editor.querySelector<HTMLFormElement>('.task-core-form')!;
+    await user.click(within(taskForm).getByRole('button', { name: 'Save' }));
+    await waitFor(async () => {
+      expect(
+        await database.taskStartingDetails.where('taskId').equals(task.id).first(),
+      ).toMatchObject({
+        whyItMatters: 'It clears the path.',
+        preferredStartStyle: 'oneThing',
+        defaultCountdownMinutes: 12,
+      });
+    });
+    expect(await focusRepository.resetPrepItems(task.id)).toBe(1);
   });
 });

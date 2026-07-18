@@ -29,6 +29,9 @@ const EMPTY_SNAPSHOT: PlannerSnapshot = {
   routineRuns: [],
   routineRunItems: [],
   routineOccurrenceAdjustments: [],
+  taskStartingDetails: [],
+  taskPrepItems: [],
+  activeFocus: undefined,
   blockedByTaskId: {},
   projectProgressByListId: {},
   deletedAreas: [],
@@ -40,6 +43,7 @@ const EMPTY_SNAPSHOT: PlannerSnapshot = {
   deletedEventTemplates: [],
   deletedRoutines: [],
   deletedRoutineItems: [],
+  deletedPrepItems: [],
 };
 
 export function usePlannerSnapshot(repository: PlannerRepository = plannerRepository) {

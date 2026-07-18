@@ -9,6 +9,9 @@ import { plannerRepository } from '../data/plannerRepository';
 import { calendarRepository } from '../data/calendarRepository';
 import { DEFAULT_CALENDAR_ID } from '../data/plannerTypes';
 import { routineRepository } from '../data/routineRepository';
+import { focusRepository } from '../data/focusRepository';
+import { dashboardRepository } from '../data/dashboardRepository';
+import { BUILT_IN_DASHBOARD_LAYOUT_IDS } from '../data/dashboardTypes';
 
 async function resetDatabase() {
   database.close();
@@ -233,5 +236,32 @@ describe('Phase 2B Home dashboard', () => {
       'href',
       expect.stringContaining('/routines?start='),
     );
+  });
+
+  it('renders one Current Focus card with its current step and confirmed end action', async () => {
+    const task = await plannerRepository.createTask('Focused dashboard task');
+    await plannerRepository.createStep(task.id, 'Open the outline');
+    await focusRepository.startFocus(task.id, 'oneThing');
+    await focusRepository.configureCountdown('custom', 15);
+    await dashboardRepository.setActiveLayout(BUILT_IN_DASHBOARD_LAYOUT_IDS.focus);
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <App />
+      </MemoryRouter>,
+    );
+
+    const card = await screen.findByRole('region', { name: 'Current Focus' });
+    expect(within(card).getByText('Focused dashboard task')).toBeVisible();
+    expect(within(card).getByText('Current step: Open the outline')).toBeVisible();
+    expect(within(card).getByText(/Countdown idle/)).toBeVisible();
+    expect(within(card).getByRole('link', { name: 'Continue' })).toHaveAttribute(
+      'href',
+      `/focus/${task.id}`,
+    );
+    await user.click(within(card).getByRole('button', { name: 'End Focus' }));
+    expect(await database.activeFocus.count()).toBe(1);
+    await user.click(within(card).getByRole('button', { name: 'Confirm End Focus' }));
+    await waitFor(() => expect(database.activeFocus.count()).resolves.toBe(0));
   });
 });

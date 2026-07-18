@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
 import { Button } from '../components/ui/Button';
 import { Dialog } from '../components/ui/Dialog';
@@ -7,6 +7,7 @@ import { Surface } from '../components/ui/Surface';
 import { calendarRepository } from '../data/calendarRepository';
 import { plannerRepository, RestoreParentRequiredError } from '../data/plannerRepository';
 import { routineRepository } from '../data/routineRepository';
+import { focusRepository, PrepParentRequiredError } from '../data/focusRepository';
 import { localDateFromDate, smartTasksFromSnapshot } from '../data/planning';
 import {
   INBOX_LIST_ID,
@@ -570,14 +571,25 @@ function TaskRow({
         {showLocation && list ? <span className="task-location">{list.name}</span> : null}
       </div>
       {!readOnly ? (
-        <button
-          type="button"
-          className="task-edit"
-          onClick={() => onEdit(task)}
-          aria-label={`Edit ${task.title}`}
-        >
-          Edit
-        </button>
+        <div className="task-row__actions">
+          {task.status !== 'completed' ? (
+            <Link
+              className="task-start-link"
+              to={`/focus/${encodeURIComponent(task.id)}`}
+              aria-label={`Start ${task.title}`}
+            >
+              Start
+            </Link>
+          ) : null}
+          <button
+            type="button"
+            className="task-edit"
+            onClick={() => onEdit(task)}
+            aria-label={`Edit ${task.title}`}
+          >
+            Edit
+          </button>
+        </div>
       ) : null}
     </li>
   );
@@ -815,6 +827,23 @@ function RecentlyDeletedPanel({ snapshot }: { snapshot: PlannerSnapshot }) {
         setRecoveryAnnouncement('Routine restored.');
         return;
       }
+      if (kind === 'prepItem') {
+        const item = snapshot.deletedPrepItems.find((candidate) => candidate.id === id);
+        const parent = item
+          ? snapshot.deletedTasks.find((task) => task.id === item.taskId)
+          : undefined;
+        if (parent && !withParents) {
+          setRestoreRequest({ kind, id, parents: [`task "${parent.title}"`] });
+          return;
+        }
+        if (parent && withParents) {
+          await plannerRepository.restoreDeletedEntity('task', parent.id, true);
+        }
+        await focusRepository.restorePrepItem(id);
+        setRecoveryAnnouncement('Prep item restored.');
+        setRestoreRequest(null);
+        return;
+      }
       if (kind === 'routineItem') {
         const item = snapshot.deletedRoutineItems.find((candidate) => candidate.id === id);
         const parent = item
@@ -852,7 +881,10 @@ function RecentlyDeletedPanel({ snapshot }: { snapshot: PlannerSnapshot }) {
       setRecoveryAnnouncement(`${kind} restored.`);
       setRestoreRequest(null);
     } catch (caughtError) {
-      if (caughtError instanceof RestoreParentRequiredError) {
+      if (
+        caughtError instanceof RestoreParentRequiredError ||
+        caughtError instanceof PrepParentRequiredError
+      ) {
         setRestoreRequest({ kind, id, parents: caughtError.parentLabels });
       }
     }
@@ -879,8 +911,8 @@ function RecentlyDeletedPanel({ snapshot }: { snapshot: PlannerSnapshot }) {
         <div className="empty-state">
           <h3>Nothing to recover</h3>
           <p>
-            Deleted calendars, events, routines, areas, lists, projects, tasks, and steps will
-            appear here.
+            Deleted calendars, events, routines, areas, lists, projects, tasks, prep items, and
+            steps will appear here.
           </p>
         </div>
       ) : (
@@ -930,7 +962,7 @@ function RecentlyDeletedPanel({ snapshot }: { snapshot: PlannerSnapshot }) {
       {permanentRequest ? (
         <ConfirmDialog
           title={`Permanently delete ${permanentRequest.label}?`}
-          description="This cannot be undone. Related definition records are cleaned up while historical routine runs remain intact."
+          description="This cannot be undone. Related records are cleaned up according to their recovery rules."
           confirmLabel="Delete forever"
           onClose={() => setPermanentRequest(null)}
           onConfirm={() =>
@@ -945,10 +977,12 @@ function RecentlyDeletedPanel({ snapshot }: { snapshot: PlannerSnapshot }) {
                       ? routineRepository.permanentlyDeleteRoutine(permanentRequest.id)
                       : permanentRequest.kind === 'routineItem'
                         ? routineRepository.permanentlyDeleteItem(permanentRequest.id)
-                        : plannerRepository.permanentlyDelete(
-                            permanentRequest.kind,
-                            permanentRequest.id,
-                          )
+                        : permanentRequest.kind === 'prepItem'
+                          ? focusRepository.permanentlyDeletePrepItem(permanentRequest.id)
+                          : plannerRepository.permanentlyDelete(
+                              permanentRequest.kind,
+                              permanentRequest.id,
+                            )
             ).then(() => setPermanentRequest(null))
           }
         />
@@ -1090,6 +1124,14 @@ function deletedItems(snapshot: PlannerSnapshot) {
       id: item.id,
       label: item.title,
       location: `Routine item in ${[...snapshot.routines, ...snapshot.deletedRoutines].find((routine) => routine.id === item.routineId)?.name ?? 'deleted routine'}`,
+      deletedAt: item.deletedAt!,
+      canDeleteForever: true,
+    })),
+    ...snapshot.deletedPrepItems.map((item) => ({
+      kind: 'prepItem' as const,
+      id: item.id,
+      label: item.title,
+      location: `Prep item in ${allTasks.find((task) => task.id === item.taskId)?.title ?? 'deleted task'}`,
       deletedAt: item.deletedAt!,
       canDeleteForever: true,
     })),

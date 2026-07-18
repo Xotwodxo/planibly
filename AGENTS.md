@@ -3,10 +3,10 @@
 ## Scope
 
 Read `Docs/planibly-pwa-product-specification.md` before product work and follow its phased roadmap.
-The current boundary is Phase 4A: routine definitions, optional local-calendar schedules, day
-variants, and explicit daily routine runs. Do not add preparation checklists, timers, focus modes,
-reviews, summaries, pattern analysis, scores, streaks, reminders, automatic routine changes,
-calendar conversion, live provider sync, or later-phase features until explicitly begun.
+The current boundary is Phase 4B: optional task-starting details, prep checklists, focused starts,
+and a resilient single countdown. Do not add Pomodoro cycles, reminders, reviews, summaries,
+actual-duration analytics, pattern analysis, scores, streaks, automatic scheduling, Session Builder,
+Help Me Choose, cloud sync, or later-phase features until explicitly begun.
 
 Planibly must remain free, private, local-first, and useful without a backend. Do not add accounts,
 analytics, advertising, paid services, external AI, native iOS claims, or silent network reporting.

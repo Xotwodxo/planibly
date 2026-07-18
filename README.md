@@ -1,12 +1,12 @@
 # Planibly
 
 Planibly is a zero-cost, private, offline-first personal planning PWA. This repository currently
-implements the installable foundation and the local planning system through **Phase 4A**. Alongside
+implements the installable foundation and the local planning system through **Phase 4B**. Alongside
 organisation, projects, search, recovery, planning, capacity, and the configurable Home dashboard,
 it now includes private internal calendars, appointments, recurring occurrences, reusable event
-templates, local ICS import/export, and flexible personal routines with durable daily runs. Live
-calendar synchronisation, reminders, provider accounts, timers, reviews, scores, and streaks remain
-out of scope.
+templates, local ICS import/export, flexible personal routines with durable daily runs, and optional
+focused task starts with resilient countdowns. Live calendar synchronisation, reminders, provider
+accounts, Pomodoro cycles, reviews, scores, and streaks remain out of scope.
 
 ## What Phase 0 contains
 
@@ -114,6 +114,22 @@ out of scope.
 - Optional Current Routine dashboard card and informational Plan-agenda integration
 - Routine and item recovery, ten-second routine undo, and permanent definition deletion that preserves run history
 - Dexie schema version 12 with definition, item, variant, run snapshot, and occurrence-adjustment stores
+
+## What Phase 4B contains
+
+- Optional plain-text motivation, preferred start style, and saved countdown duration per task
+- One-level prep checklists kept separate from task steps and project/task progress
+- Gentle Start, One Thing, and Full View choices in a dedicated, escapable focused-start screen
+- Exactly one locally persisted active focus with deliberate switching and safe task-lifecycle cleanup
+- A timestamp-derived continuous countdown with pause, resume, add-time, reset, and neutral expiry
+- Existing-step current-action navigation without generated steps or automatic parent completion
+- An optional Current Focus dashboard card without changing saved custom dashboard layouts
+- Prep recovery through the existing undo and Recently Deleted architecture
+- Dexie schema version 13 with task-starting, prep-item, and active-focus stores
+
+Routine items remain independent from tasks. Phase 4B deliberately defers routine-to-task links
+because adding them would expand the released Phase 4A schema for a non-essential integration.
+See [Docs/phase-4b-architecture.md](Docs/phase-4b-architecture.md) for persistence and recovery rules.
 
 There is no backend, account, analytics, external AI, paid service, provider OAuth, or native iOS
 integration. ICS transfer creates a copy; later changes do not synchronise automatically.

@@ -38,9 +38,16 @@ import type {
   RoutineRunRecord,
   RoutineVariantRecord,
 } from './routineTypes';
+import type {
+  ActiveFocusRecord,
+  TaskPrepItemRecord,
+  TaskStartingDetailsRecord,
+} from './focusTypes';
+import { isValidActiveFocusRecord } from './focus';
+import { ACTIVE_FOCUS_ID } from './focusTypes';
 
 export const DATABASE_NAME = 'planibly';
-export const DATABASE_SCHEMA_VERSION = 12;
+export const DATABASE_SCHEMA_VERSION = 13;
 
 export type MetadataRecord = {
   key: string;
@@ -455,6 +462,62 @@ export const schemaVersions: readonly SchemaVersion[] = [
       });
     },
   },
+  {
+    version: 13,
+    stores: {
+      metadata: '&key, updatedAt',
+      diagnostics: '&id, level, event, createdAt',
+      areas: '&id, order, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      lists:
+        '&id, areaId, [areaId+order], systemType, mode, archivedAt, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      tasks:
+        '&id, listId, [listId+order], status, plannedDate, deadlineDate, flexibleStartDate, flexibleEndDate, completedAt, completedClearedAt, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      taskSteps: '&id, taskId, [taskId+order], createdAt, modifiedAt, deletedAt, deletionGroupId',
+      tags: '&id, normalizedName, createdAt, modifiedAt, deletedAt',
+      taskTags:
+        '&id, taskId, tagId, &[taskId+tagId], createdAt, modifiedAt, deletedAt, deletionGroupId',
+      taskRelationships:
+        '&id, predecessorTaskId, successorTaskId, [predecessorTaskId+successorTaskId], createdAt, modifiedAt, deletedAt, deletionGroupId',
+      dashboardLayouts: '&id, builtInKey, isDefault, createdAt, modifiedAt',
+      plannedPlacements: '&id, &taskId, [localDate+group+order], localDate, group, modifiedAt',
+      planningCapacities: '&id, kind, weekday, localDate, modifiedAt',
+      calendars: '&id, order, isVisible, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      calendarEvents:
+        '&id, calendarId, startDate, endDate, [calendarId+startDate], deletedAt, deletionGroupId, modifiedAt',
+      recurrenceRules: '&id, &eventId, frequency, modifiedAt',
+      recurrenceExceptions:
+        '&id, seriesEventId, originalStartDate, &[seriesEventId+originalStartDate], kind, deletedAt, deletionGroupId, modifiedAt',
+      eventTemplates: '&id, order, calendarId, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      calendarImportSources: '&id, lastImportedAt, destinationCalendarId',
+      calendarImportBatches: '&id, sourceId, importedAt, destinationCalendarId',
+      externalEventMappings:
+        '&id, sourceId, externalUid, recurrenceKey, &[sourceId+externalUid+recurrenceKey], eventId, exceptionId, lastImportedAt',
+      routines:
+        '&id, order, isActive, scheduleKind, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      routineItems:
+        '&id, routineId, [routineId+order], isActive, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      routineVariants:
+        '&id, routineId, [routineId+order], *weekdays, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      routineRuns:
+        '&id, routineId, localDate, &[routineId+localDate], status, startedAt, completedAt, skippedAt, modifiedAt',
+      routineRunItems: '&id, runId, [runId+order], completedAt, modifiedAt',
+      routineOccurrenceAdjustments:
+        '&id, routineId, originalDate, destinationDate, &[routineId+originalDate], modifiedAt',
+      taskStartingDetails: '&id, &taskId, modifiedAt',
+      taskPrepItems:
+        '&id, taskId, [taskId+order], completed, modifiedAt, deletedAt, deletionGroupId',
+      activeFocus: '&id, &taskId, modifiedAt',
+    },
+    migrate: async (transaction) => {
+      const metadata = transaction.table<MetadataRecord>('metadata');
+      const current = await metadata.get('schemaVersion');
+      await metadata.put({
+        key: 'schemaVersion',
+        value: '13',
+        updatedAt: current?.updatedAt ?? new Date(0).toISOString(),
+      });
+    },
+  },
 ];
 
 function migrationAgendaGroup(task: TaskRecord): AgendaGroup {
@@ -489,6 +552,9 @@ export class PlaniblyDatabase extends Dexie {
   routineRuns!: EntityTable<RoutineRunRecord, 'id'>;
   routineRunItems!: EntityTable<RoutineRunItemRecord, 'id'>;
   routineOccurrenceAdjustments!: EntityTable<RoutineOccurrenceAdjustmentRecord, 'id'>;
+  taskStartingDetails!: EntityTable<TaskStartingDetailsRecord, 'id'>;
+  taskPrepItems!: EntityTable<TaskPrepItemRecord, 'id'>;
+  activeFocus!: EntityTable<ActiveFocusRecord, 'id'>;
 
   public constructor(name = DATABASE_NAME) {
     super(name);
@@ -593,6 +659,30 @@ export async function initializeDatabase(db: PlaniblyDatabase = database): Promi
   await initializeStarterData(db);
   await initializeDashboardStarterData(db);
   await initializeCalendarStarterData(db);
+  await repairActiveFocusState(db);
+}
+
+export async function repairActiveFocusState(db: PlaniblyDatabase = database): Promise<void> {
+  await db.transaction('rw', db.activeFocus, db.tasks, db.lists, async () => {
+    const records = await db.activeFocus.toArray();
+    const candidate = records.find((record) => record.id === ACTIVE_FOCUS_ID);
+    const task = candidate ? await db.tasks.get(candidate.taskId) : undefined;
+    const list = task ? await db.lists.get(task.listId) : undefined;
+    const valid = Boolean(
+      candidate &&
+      isValidActiveFocusRecord(candidate) &&
+      task &&
+      task.deletedAt === undefined &&
+      task.status !== 'completed' &&
+      list &&
+      list.deletedAt === undefined &&
+      list.archivedAt === undefined,
+    );
+    if (records.length !== (valid ? 1 : 0) || (valid && records[0]?.id !== ACTIVE_FOCUS_ID)) {
+      await db.activeFocus.clear();
+      if (valid && candidate) await db.activeFocus.add(candidate);
+    }
+  });
 }
 
 export async function initializeCalendarStarterData(

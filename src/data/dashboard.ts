@@ -15,6 +15,8 @@ import { smartTasksFromSnapshot } from './planning';
 import { eventsForDate } from './calendar';
 import { expandCalendarOccurrences } from './recurrence';
 import { routinesForDate, runProgress } from './routine';
+import { countdownView, currentIncompleteStep } from './focus';
+import type { CountdownViewState } from './focusTypes';
 import type {
   CalendarOccurrence,
   PlanListRecord,
@@ -24,7 +26,12 @@ import type {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const BUILT_IN_KEYS = ['overview', 'focus', 'planning'] as const;
-const SUGGESTION_TYPES = ['addOverdue', 'addProjectNextActions', 'addCurrentRoutine'] as const;
+const SUGGESTION_TYPES = [
+  'addOverdue',
+  'addProjectNextActions',
+  'addCurrentRoutine',
+  'addCurrentFocus',
+] as const;
 
 export const RECENTLY_COMPLETED_LIMIT = 5;
 
@@ -39,6 +46,7 @@ export type DashboardCardData = {
   events: CalendarOccurrence[];
   totalCount: number;
   currentRoutine?: CurrentRoutineData;
+  currentFocus?: CurrentFocusData;
 };
 
 export type CurrentRoutineData = {
@@ -50,6 +58,14 @@ export type CurrentRoutineData = {
   completed: number;
   total: number;
   action: 'Start' | 'Continue';
+};
+
+export type CurrentFocusData = {
+  taskId: string;
+  title: string;
+  currentStep?: string;
+  countdownState: CountdownViewState;
+  remainingSeconds: number;
 };
 
 export type DashboardSuggestion = {
@@ -207,11 +223,13 @@ export function dashboardCardDataFromSnapshot(
   snapshot: PlannerSnapshot,
   type: DashboardCardType,
   today: string,
+  now: Date | string = new Date(),
 ): DashboardCardData {
   let tasks: TaskRecord[] = [];
   let projectNextActions: ProjectNextAction[] = [];
   let events: CalendarOccurrence[] = [];
   let currentRoutine: CurrentRoutineData | undefined;
+  let currentFocus: CurrentFocusData | undefined;
   switch (type) {
     case 'today':
       tasks = smartTasksFromSnapshot(snapshot, 'today', today);
@@ -243,6 +261,9 @@ export function dashboardCardDataFromSnapshot(
     case 'currentRoutine':
       currentRoutine = currentRoutineFromSnapshot(snapshot, today);
       break;
+    case 'currentFocus':
+      currentFocus = currentFocusFromSnapshot(snapshot, now);
+      break;
     case 'quickAdd':
       break;
   }
@@ -250,8 +271,30 @@ export function dashboardCardDataFromSnapshot(
     tasks,
     projectNextActions,
     events,
-    totalCount: currentRoutine ? 1 : tasks.length + events.length || projectNextActions.length,
+    totalCount:
+      currentRoutine || currentFocus
+        ? 1
+        : tasks.length + events.length || projectNextActions.length,
     currentRoutine,
+    currentFocus,
+  };
+}
+
+export function currentFocusFromSnapshot(
+  snapshot: PlannerSnapshot,
+  now: Date | string = new Date(),
+): CurrentFocusData | undefined {
+  const focus = snapshot.activeFocus;
+  if (!focus) return undefined;
+  const task = snapshot.tasks.find((candidate) => candidate.id === focus.taskId);
+  if (!task || task.status === 'completed') return undefined;
+  const timer = countdownView(focus, now);
+  return {
+    taskId: task.id,
+    title: task.title,
+    currentStep: currentIncompleteStep(snapshot, task.id)?.title,
+    countdownState: timer.state,
+    remainingSeconds: timer.remainingSeconds,
   };
 }
 
@@ -324,6 +367,7 @@ export function dashboardEmptyMessage(type: DashboardCardType): string {
     projectNextActions: 'No project has an available next action.',
     recentlyCompleted: 'Completed tasks will appear here.',
     currentRoutine: 'No routine is waiting for today.',
+    currentFocus: 'No task is currently focused.',
   };
   return messages[type];
 }
@@ -369,6 +413,17 @@ export function dashboardSuggestions(
       type: 'addCurrentRoutine',
       cardType: 'currentRoutine',
       message: 'Active routines are available. You can add the Current Routine card to Home.',
+    });
+  }
+  if (
+    hidden.has('currentFocus') &&
+    !dismissed.has('addCurrentFocus') &&
+    snapshot.activeFocus !== undefined
+  ) {
+    suggestions.push({
+      type: 'addCurrentFocus',
+      cardType: 'currentFocus',
+      message: 'A task is in focus. You can add the Current Focus card to Home.',
     });
   }
   return suggestions;

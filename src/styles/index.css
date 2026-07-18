@@ -3008,6 +3008,334 @@ select {
   flex: 1 1 auto;
 }
 
+.starting-support-fields,
+.focus-style-chooser,
+.focus-countdown,
+.focus-current-step,
+.focus-full-task,
+.focus-prep,
+.focus-why {
+  min-width: 0;
+}
+
+.starting-support-fields {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.starting-support-fields > p,
+.task-detail-heading > div > p {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.task-row__actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.task-start-link {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  padding-inline: var(--space-2);
+  color: var(--color-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.focus-shell {
+  width: 100%;
+  min-width: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  max-width: 100vw;
+  padding: max(var(--space-4), env(safe-area-inset-top))
+    max(var(--space-4), env(safe-area-inset-right)) max(var(--space-6), env(safe-area-inset-bottom))
+    max(var(--space-4), env(safe-area-inset-left));
+  background:
+    radial-gradient(circle at top left, var(--color-primary-soft), transparent 34rem),
+    var(--color-background);
+  overflow-x: clip;
+}
+
+.focus-shell > .surface,
+.focus-workspace,
+.focus-topbar,
+.focus-error {
+  width: min(100%, 72rem);
+  min-width: 0;
+  max-width: 100%;
+  margin-inline: auto;
+}
+
+.focus-shell > .surface {
+  padding: clamp(var(--space-4), 4vw, var(--space-7));
+}
+
+.focus-topbar {
+  display: flex;
+  min-height: 3.25rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.focus-topbar a,
+.focus-topbar button {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 2.75rem;
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.focus-topbar > span {
+  color: var(--color-primary);
+  font-weight: 800;
+}
+
+.focus-start-card,
+.focus-switch-card,
+.focus-unavailable,
+.focus-primary,
+.focus-controls {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+}
+
+.focus-start-card > h1,
+.focus-switch-card > h1,
+.focus-unavailable > h1,
+.focus-primary > h1 {
+  margin: 0;
+  font-size: clamp(1.75rem, 6vw, 3rem);
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.focus-context,
+.focus-style-chooser small,
+.focus-countdown p {
+  color: var(--color-text-secondary);
+}
+
+.focus-context {
+  margin: calc(-1 * var(--space-2)) 0 0;
+}
+
+.focus-actions,
+.focus-step-navigation,
+.countdown-actions,
+.dashboard-current-focus__actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.focus-style-chooser {
+  display: grid;
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+}
+
+.focus-style-chooser legend {
+  margin-bottom: var(--space-2);
+  font-weight: 800;
+}
+
+.focus-style-chooser label {
+  display: flex;
+  min-width: 0;
+  min-height: 44px;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-secondary);
+}
+
+.focus-style-chooser label:has(input:checked) {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.focus-style-chooser input {
+  flex: 0 0 auto;
+  margin-top: var(--space-1);
+}
+
+.focus-style-chooser span {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+  overflow-wrap: anywhere;
+}
+
+.focus-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(17rem, 0.7fr);
+  gap: var(--space-4);
+}
+
+.focus-primary,
+.focus-controls {
+  padding: clamp(var(--space-4), 3vw, var(--space-6));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--elevation-1);
+}
+
+.focus-controls {
+  align-content: start;
+  align-self: start;
+}
+
+.focus-controls > h2,
+.focus-why h2,
+.focus-prep h2,
+.focus-full-task h2,
+.focus-current-step h2,
+.focus-countdown h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.blocked-notice {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border-inline-start: 0.25rem solid var(--color-warning);
+  background: var(--color-surface-secondary);
+}
+
+.focus-prep,
+.focus-full-task,
+.focus-current-step,
+.focus-countdown,
+.focus-why {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-secondary);
+}
+
+.focus-prep > div,
+.dashboard-current-focus {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.focus-prep ul,
+.focus-full-task ol {
+  display: grid;
+  gap: var(--space-2);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.focus-prep label,
+.focus-full-task label,
+.focus-step-check {
+  display: flex;
+  min-width: 0;
+  min-height: 44px;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.focus-prep .is-completed span,
+.focus-full-task .is-completed span {
+  color: var(--color-text-secondary);
+  text-decoration: line-through;
+}
+
+.countdown-display {
+  display: block;
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-background);
+  font-size: clamp(1.5rem, 7vw, 2.5rem);
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.countdown-display--finished,
+.countdown-finished {
+  border-color: var(--color-warning);
+}
+
+.countdown-choices {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+}
+
+.countdown-custom {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.countdown-custom input {
+  width: 100%;
+  min-width: 0;
+  padding-inline: var(--space-2);
+}
+
+.dashboard-current-focus {
+  flex-wrap: wrap;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-secondary);
+}
+
+.dashboard-current-focus > div:first-child {
+  display: grid;
+  min-width: min(100%, 14rem);
+  flex: 1 1 14rem;
+  gap: var(--space-1);
+}
+
+.dashboard-focus-empty {
+  display: grid;
+  gap: var(--space-2);
+}
+
+@media (max-width: 50rem) {
+  .focus-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 @media (max-width: 42rem) {
   .routine-heading,
   .routine-review .section-heading,
@@ -3034,6 +3362,36 @@ select {
   .routine-library-list .button,
   .dashboard-current-routine .button {
     width: 100%;
+  }
+
+  .focus-shell {
+    padding-inline: max(var(--space-3), env(safe-area-inset-left));
+  }
+
+  .focus-topbar,
+  .focus-prep > div,
+  .dashboard-current-focus {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .focus-topbar > * {
+    flex: 1 1 0;
+  }
+
+  .focus-actions .button,
+  .countdown-actions .button,
+  .dashboard-current-focus__actions .button {
+    width: 100%;
+  }
+
+  .task-row {
+    grid-template-columns: 2.75rem minmax(0, 1fr);
+  }
+
+  .task-row__actions {
+    grid-column: 2;
+    flex-wrap: wrap;
   }
 }
 

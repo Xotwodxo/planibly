@@ -1,4 +1,4 @@
-export const DASHBOARD_STARTER_DATA_VERSION = 2;
+export const DASHBOARD_STARTER_DATA_VERSION = 3;
 
 export const DASHBOARD_CARD_TYPES = [
   'quickAdd',
@@ -11,6 +11,7 @@ export const DASHBOARD_CARD_TYPES = [
   'projectNextActions',
   'recentlyCompleted',
   'currentRoutine',
+  'currentFocus',
 ] as const;
 
 export type DashboardCardType = (typeof DASHBOARD_CARD_TYPES)[number];
@@ -28,7 +29,8 @@ export type DashboardCardConfig = {
 
 export type BuiltInDashboardLayoutKey = 'overview' | 'focus' | 'planning';
 
-export type DashboardSuggestionType = 'addOverdue' | 'addProjectNextActions' | 'addCurrentRoutine';
+export type DashboardSuggestionType =
+  'addOverdue' | 'addProjectNextActions' | 'addCurrentRoutine' | 'addCurrentFocus';
 
 export type DashboardLayoutRecord = {
   id: string;
@@ -83,6 +85,7 @@ export const STARTER_DASHBOARD_LAYOUTS: readonly StarterDashboardLayout[] = [
       card('unscheduled', 'standard', 7, true),
       card('blockedTasks', 'standard', 8, true),
       card('recentlyCompleted', 'compact', 9),
+      card('currentFocus', 'standard', 10, true),
     ],
   },
   {
@@ -92,15 +95,16 @@ export const STARTER_DASHBOARD_LAYOUTS: readonly StarterDashboardLayout[] = [
     isDefault: false,
     cards: [
       card('quickAdd', 'compact', 0),
-      card('today', 'wide', 1),
-      card('blockedTasks', 'standard', 2),
-      card('projectNextActions', 'wide', 3),
-      card('overdue', 'standard', 4),
-      card('recentlyCompleted', 'compact', 5),
-      card('nextThreeDays', 'standard', 6, true),
-      card('upcomingDeadlines', 'standard', 7, true),
-      card('unscheduled', 'standard', 8, true),
-      card('currentRoutine', 'standard', 9, true),
+      card('currentFocus', 'wide', 1),
+      card('today', 'wide', 2),
+      card('blockedTasks', 'standard', 3),
+      card('projectNextActions', 'wide', 4),
+      card('overdue', 'standard', 5),
+      card('recentlyCompleted', 'compact', 6),
+      card('nextThreeDays', 'standard', 7, true),
+      card('upcomingDeadlines', 'standard', 8, true),
+      card('unscheduled', 'standard', 9, true),
+      card('currentRoutine', 'standard', 10, true),
     ],
   },
   {
@@ -119,6 +123,7 @@ export const STARTER_DASHBOARD_LAYOUTS: readonly StarterDashboardLayout[] = [
       card('projectNextActions', 'standard', 7, true),
       card('recentlyCompleted', 'compact', 8, true),
       card('currentRoutine', 'standard', 9, true),
+      card('currentFocus', 'standard', 10, true),
     ],
   },
 ] as const;
@@ -134,4 +139,5 @@ export const DASHBOARD_CARD_LABELS: Record<DashboardCardType, string> = {
   projectNextActions: 'Project Next Actions',
   recentlyCompleted: 'Recently Completed',
   currentRoutine: 'Current Routine',
+  currentFocus: 'Current Focus',
 };

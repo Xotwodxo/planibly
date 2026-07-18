@@ -22,6 +22,7 @@ describe('PlaniblyDatabase', () => {
       value: String(DATABASE_SCHEMA_VERSION),
     });
     expect(database.tables.map((table) => table.name).sort()).toEqual([
+      'activeFocus',
       'areas',
       'calendarEvents',
       'calendarImportBatches',
@@ -44,7 +45,9 @@ describe('PlaniblyDatabase', () => {
       'routineVariants',
       'routines',
       'tags',
+      'taskPrepItems',
       'taskRelationships',
+      'taskStartingDetails',
       'taskSteps',
       'taskTags',
       'tasks',
@@ -168,7 +171,7 @@ describe('PlaniblyDatabase', () => {
     expect(await upgraded.tags.count()).toBe(0);
     expect(await upgraded.taskTags.count()).toBe(0);
     expect(await upgraded.taskRelationships.count()).toBe(0);
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '12' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '13' });
 
     upgraded.close();
     await upgraded.delete();
@@ -220,7 +223,7 @@ describe('PlaniblyDatabase', () => {
       createdAt: timestamp,
       modifiedAt: timestamp,
     });
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '12' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '13' });
 
     upgraded.close();
     await upgraded.delete();
@@ -266,7 +269,7 @@ describe('PlaniblyDatabase', () => {
     expect(task?.deadlineDate).toBeUndefined();
     expect(task?.flexibleStartDate).toBeUndefined();
     expect(task?.exactStartTime).toBeUndefined();
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '12' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '13' });
 
     expect(task?.completedAt).toBeUndefined();
 
@@ -406,7 +409,7 @@ describe('PlaniblyDatabase', () => {
     });
     expect(await upgraded.plannedPlacements.get('unplanned-v7')).toBeUndefined();
     expect(await upgraded.planningCapacities.count()).toBe(0);
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '12' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '13' });
 
     upgraded.close();
     await upgraded.delete();
@@ -546,7 +549,7 @@ describe('PlaniblyDatabase', () => {
     expect(await upgraded.recurrenceRules.count()).toBe(0);
     expect(await upgraded.recurrenceExceptions.count()).toBe(0);
     expect(await upgraded.eventTemplates.count()).toBe(0);
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '12' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '13' });
     upgraded.close();
     await upgraded.delete();
   });
@@ -616,7 +619,7 @@ describe('PlaniblyDatabase', () => {
     expect(await upgraded.calendarImportSources.count()).toBe(0);
     expect(await upgraded.calendarImportBatches.count()).toBe(0);
     expect(await upgraded.externalEventMappings.count()).toBe(0);
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '12' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '13' });
     upgraded.close();
     await upgraded.delete();
   });
@@ -712,7 +715,116 @@ describe('PlaniblyDatabase', () => {
     expect(await upgraded.routineRuns.count()).toBe(0);
     expect(await upgraded.routineRunItems.count()).toBe(0);
     expect(await upgraded.routineOccurrenceAdjustments.count()).toBe(0);
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '12' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '13' });
+    upgraded.close();
+    await upgraded.delete();
+  });
+
+  it('upgrades Phase 4A v12 data append-only and creates empty starting-support stores', async () => {
+    const name = `planibly-v12-focus-${crypto.randomUUID()}`;
+    const legacy = new Dexie(name);
+    legacy.version(12).stores(schemaVersions.find((schema) => schema.version === 12)!.stores);
+    await legacy.open();
+    const timestamp = '2026-07-18T08:00:00.000Z';
+    await legacy.table('metadata').put({ key: 'schemaVersion', value: '12', updatedAt: timestamp });
+    await legacy.table('tasks').put({
+      id: 'v12-task',
+      listId: INBOX_LIST_ID,
+      title: 'Preserved Phase 4A task',
+      status: 'inbox',
+      order: 0,
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    await legacy.table('routines').put({
+      id: 'v12-routine',
+      name: 'Preserved routine',
+      color: '#5B67C8',
+      isActive: true,
+      presentationStyle: 'checklist',
+      scheduleKind: 'daily',
+      selectedWeekdays: [],
+      defaultSection: 'morning',
+      order: 0,
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    await legacy.table('routineItems').put({
+      id: 'v12-routine-item',
+      routineId: 'v12-routine',
+      title: 'Preserved item',
+      order: 0,
+      isActive: true,
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    await legacy.table('routineVariants').put({
+      id: 'v12-variant',
+      routineId: 'v12-routine',
+      name: 'Weekend',
+      weekdays: [6],
+      itemIds: ['v12-routine-item'],
+      order: 0,
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    await legacy.table('routineRuns').put({
+      id: 'v12-run',
+      routineId: 'v12-routine',
+      routineName: 'Preserved routine',
+      routineColor: '#5B67C8',
+      localDate: '2026-07-18',
+      presentationStyle: 'checklist',
+      status: 'inProgress',
+      startedAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    await legacy.table('routineRunItems').put({
+      id: 'v12-run-item',
+      runId: 'v12-run',
+      sourceRoutineItemId: 'v12-routine-item',
+      title: 'Preserved item',
+      order: 0,
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    await legacy.table('routineOccurrenceAdjustments').put({
+      id: 'v12-adjustment',
+      routineId: 'v12-routine',
+      originalDate: '2026-07-17',
+      destinationDate: '2026-07-18',
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    legacy.close();
+
+    const upgraded = new PlaniblyDatabase(name);
+    await initializeDatabase(upgraded);
+    await expect(upgraded.tasks.get('v12-task')).resolves.toMatchObject({
+      title: 'Preserved Phase 4A task',
+    });
+    await expect(upgraded.routines.get('v12-routine')).resolves.toMatchObject({
+      name: 'Preserved routine',
+    });
+    await expect(upgraded.routineItems.get('v12-routine-item')).resolves.toMatchObject({
+      title: 'Preserved item',
+    });
+    await expect(upgraded.routineVariants.get('v12-variant')).resolves.toMatchObject({
+      itemIds: ['v12-routine-item'],
+    });
+    await expect(upgraded.routineRuns.get('v12-run')).resolves.toMatchObject({
+      status: 'inProgress',
+    });
+    await expect(upgraded.routineRunItems.get('v12-run-item')).resolves.toMatchObject({
+      title: 'Preserved item',
+    });
+    await expect(
+      upgraded.routineOccurrenceAdjustments.get('v12-adjustment'),
+    ).resolves.toMatchObject({ destinationDate: '2026-07-18' });
+    expect(await upgraded.taskStartingDetails.count()).toBe(0);
+    expect(await upgraded.taskPrepItems.count()).toBe(0);
+    expect(await upgraded.activeFocus.count()).toBe(0);
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '13' });
     upgraded.close();
     await upgraded.delete();
   });

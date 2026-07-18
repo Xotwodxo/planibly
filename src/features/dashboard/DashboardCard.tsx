@@ -1,4 +1,4 @@
-import { useId } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { Button } from '../../components/ui/Button';
@@ -14,6 +14,8 @@ import type { DashboardCardConfig } from '../../data/dashboardTypes';
 import type { CalendarOccurrence, PlannerSnapshot, TaskRecord } from '../../data/plannerTypes';
 import { openQuickAdd } from '../planner/plannerEvents';
 import { TaskPlanningSummary } from '../planner/TaskPlanningSummary';
+import { formatCountdown } from '../../data/focus';
+import { focusRepository } from '../../data/focusRepository';
 
 type DashboardCardProps = {
   config: DashboardCardConfig;
@@ -33,13 +35,22 @@ export function DashboardCard({
   onEditEvent,
 }: DashboardCardProps) {
   const headingId = useId();
-  const data = dashboardCardDataFromSnapshot(snapshot, config.type, today);
+  const [clock, setClock] = useState(() => new Date());
+  const data = dashboardCardDataFromSnapshot(snapshot, config.type, today, clock);
   const limit = dashboardTaskLimit(config.size);
   const tasks = data.tasks.slice(0, limit);
   const projectActions = data.projectNextActions.slice(0, limit);
   const events = data.events.slice(0, limit);
   const link = dashboardCardLink(config.type);
   const label = DASHBOARD_CARD_LABELS[config.type];
+  const [confirmEndFocus, setConfirmEndFocus] = useState(false);
+
+  useEffect(() => {
+    if (config.type !== 'currentFocus' || snapshot.activeFocus?.countdownState !== 'running')
+      return;
+    const interval = window.setInterval(() => setClock(new Date()), 1_000);
+    return () => window.clearInterval(interval);
+  }, [config.type, snapshot.activeFocus?.countdownEndsAt, snapshot.activeFocus?.countdownState]);
 
   return (
     <Surface
@@ -62,6 +73,55 @@ export function DashboardCard({
           <Button type="button" onClick={openQuickAdd}>
             Add a task
           </Button>
+        </div>
+      ) : config.type === 'currentFocus' && data.currentFocus ? (
+        <div className="dashboard-current-focus">
+          <div>
+            <strong>{data.currentFocus.title}</strong>
+            {data.currentFocus.currentStep ? (
+              <span>Current step: {data.currentFocus.currentStep}</span>
+            ) : (
+              <span>Work from the task title</span>
+            )}
+            {data.currentFocus.countdownState !== 'none' ? (
+              <span>
+                Countdown {data.currentFocus.countdownState} ·{' '}
+                {formatCountdown(data.currentFocus.remainingSeconds)}
+              </span>
+            ) : null}
+          </div>
+          <div className="dashboard-current-focus__actions">
+            <Link
+              className="button button--secondary"
+              to={`/focus/${encodeURIComponent(data.currentFocus.taskId)}`}
+            >
+              Continue
+            </Link>
+            {confirmEndFocus ? (
+              <>
+                <Button
+                  variant="quiet"
+                  onClick={() =>
+                    void focusRepository.endFocus().then(() => setConfirmEndFocus(false))
+                  }
+                >
+                  Confirm End Focus
+                </Button>
+                <Button variant="quiet" onClick={() => setConfirmEndFocus(false)}>
+                  Keep focus
+                </Button>
+              </>
+            ) : (
+              <Button variant="quiet" onClick={() => setConfirmEndFocus(true)}>
+                End Focus
+              </Button>
+            )}
+          </div>
+        </div>
+      ) : config.type === 'currentFocus' ? (
+        <div className="dashboard-card__empty dashboard-focus-empty">
+          <p>{dashboardEmptyMessage('currentFocus')}</p>
+          <Link to="/lists">Start a Task</Link>
         </div>
       ) : config.type === 'currentRoutine' && data.currentRoutine ? (
         <div className="dashboard-current-routine">
@@ -210,6 +270,15 @@ function DashboardTask({
           <span className="blocked-label">Blocked by {blockerNames.join(', ')}</span>
         ) : null}
       </div>
+      {!completedCard && task.status !== 'completed' ? (
+        <Link
+          className="task-start-link"
+          to={`/focus/${encodeURIComponent(task.id)}`}
+          aria-label={`Start ${task.title}`}
+        >
+          Start
+        </Link>
+      ) : null}
     </li>
   );
 }
