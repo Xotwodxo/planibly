@@ -30,9 +30,17 @@ import {
   type TaskStepRecord,
   type TaskTagRecord,
 } from './plannerTypes';
+import type {
+  RoutineItemRecord,
+  RoutineOccurrenceAdjustmentRecord,
+  RoutineRecord,
+  RoutineRunItemRecord,
+  RoutineRunRecord,
+  RoutineVariantRecord,
+} from './routineTypes';
 
 export const DATABASE_NAME = 'planibly';
-export const DATABASE_SCHEMA_VERSION = 11;
+export const DATABASE_SCHEMA_VERSION = 12;
 
 export type MetadataRecord = {
   key: string;
@@ -395,6 +403,58 @@ export const schemaVersions: readonly SchemaVersion[] = [
       });
     },
   },
+  {
+    version: 12,
+    stores: {
+      metadata: '&key, updatedAt',
+      diagnostics: '&id, level, event, createdAt',
+      areas: '&id, order, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      lists:
+        '&id, areaId, [areaId+order], systemType, mode, archivedAt, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      tasks:
+        '&id, listId, [listId+order], status, plannedDate, deadlineDate, flexibleStartDate, flexibleEndDate, completedAt, completedClearedAt, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      taskSteps: '&id, taskId, [taskId+order], createdAt, modifiedAt, deletedAt, deletionGroupId',
+      tags: '&id, normalizedName, createdAt, modifiedAt, deletedAt',
+      taskTags:
+        '&id, taskId, tagId, &[taskId+tagId], createdAt, modifiedAt, deletedAt, deletionGroupId',
+      taskRelationships:
+        '&id, predecessorTaskId, successorTaskId, [predecessorTaskId+successorTaskId], createdAt, modifiedAt, deletedAt, deletionGroupId',
+      dashboardLayouts: '&id, builtInKey, isDefault, createdAt, modifiedAt',
+      plannedPlacements: '&id, &taskId, [localDate+group+order], localDate, group, modifiedAt',
+      planningCapacities: '&id, kind, weekday, localDate, modifiedAt',
+      calendars: '&id, order, isVisible, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      calendarEvents:
+        '&id, calendarId, startDate, endDate, [calendarId+startDate], deletedAt, deletionGroupId, modifiedAt',
+      recurrenceRules: '&id, &eventId, frequency, modifiedAt',
+      recurrenceExceptions:
+        '&id, seriesEventId, originalStartDate, &[seriesEventId+originalStartDate], kind, deletedAt, deletionGroupId, modifiedAt',
+      eventTemplates: '&id, order, calendarId, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      calendarImportSources: '&id, lastImportedAt, destinationCalendarId',
+      calendarImportBatches: '&id, sourceId, importedAt, destinationCalendarId',
+      externalEventMappings:
+        '&id, sourceId, externalUid, recurrenceKey, &[sourceId+externalUid+recurrenceKey], eventId, exceptionId, lastImportedAt',
+      routines:
+        '&id, order, isActive, scheduleKind, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      routineItems:
+        '&id, routineId, [routineId+order], isActive, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      routineVariants:
+        '&id, routineId, [routineId+order], *weekdays, createdAt, modifiedAt, deletedAt, deletionGroupId',
+      routineRuns:
+        '&id, routineId, localDate, &[routineId+localDate], status, startedAt, completedAt, skippedAt, modifiedAt',
+      routineRunItems: '&id, runId, [runId+order], completedAt, modifiedAt',
+      routineOccurrenceAdjustments:
+        '&id, routineId, originalDate, destinationDate, &[routineId+originalDate], modifiedAt',
+    },
+    migrate: async (transaction) => {
+      const metadata = transaction.table<MetadataRecord>('metadata');
+      const current = await metadata.get('schemaVersion');
+      await metadata.put({
+        key: 'schemaVersion',
+        value: '12',
+        updatedAt: current?.updatedAt ?? new Date(0).toISOString(),
+      });
+    },
+  },
 ];
 
 function migrationAgendaGroup(task: TaskRecord): AgendaGroup {
@@ -423,6 +483,12 @@ export class PlaniblyDatabase extends Dexie {
   calendarImportSources!: EntityTable<CalendarImportSourceRecord, 'id'>;
   calendarImportBatches!: EntityTable<CalendarImportBatchRecord, 'id'>;
   externalEventMappings!: EntityTable<ExternalEventMappingRecord, 'id'>;
+  routines!: EntityTable<RoutineRecord, 'id'>;
+  routineItems!: EntityTable<RoutineItemRecord, 'id'>;
+  routineVariants!: EntityTable<RoutineVariantRecord, 'id'>;
+  routineRuns!: EntityTable<RoutineRunRecord, 'id'>;
+  routineRunItems!: EntityTable<RoutineRunItemRecord, 'id'>;
+  routineOccurrenceAdjustments!: EntityTable<RoutineOccurrenceAdjustmentRecord, 'id'>;
 
   public constructor(name = DATABASE_NAME) {
     super(name);

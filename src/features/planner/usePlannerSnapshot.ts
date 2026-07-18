@@ -23,6 +23,12 @@ const EMPTY_SNAPSHOT: PlannerSnapshot = {
   recurrenceRules: [],
   recurrenceExceptions: [],
   eventTemplates: [],
+  routines: [],
+  routineItems: [],
+  routineVariants: [],
+  routineRuns: [],
+  routineRunItems: [],
+  routineOccurrenceAdjustments: [],
   blockedByTaskId: {},
   projectProgressByListId: {},
   deletedAreas: [],
@@ -32,6 +38,8 @@ const EMPTY_SNAPSHOT: PlannerSnapshot = {
   deletedCalendars: [],
   deletedCalendarEvents: [],
   deletedEventTemplates: [],
+  deletedRoutines: [],
+  deletedRoutineItems: [],
 };
 
 export function usePlannerSnapshot(repository: PlannerRepository = plannerRepository) {

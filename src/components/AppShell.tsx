@@ -3,6 +3,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom';
 
 import { plannerRepository } from '../data/plannerRepository';
 import { calendarRepository } from '../data/calendarRepository';
+import { routineRepository } from '../data/routineRepository';
 import type { DeletionReceipt } from '../data/plannerTypes';
 import { OPEN_QUICK_ADD_EVENT, SHOW_UNDO_EVENT } from '../features/planner/plannerEvents';
 import { QuickAddDialog } from '../features/planner/QuickAddDialog';
@@ -16,6 +17,7 @@ const titles: Record<string, string> = {
   '/plan': 'Plan',
   '/calendar': 'Calendar',
   '/lists': 'Lists',
+  '/routines': 'Routines',
   '/insights': 'Insights',
   '/settings': 'Settings',
 };
@@ -59,6 +61,8 @@ export function AppShell() {
         undoReceipt.kind === 'template'
       ) {
         await calendarRepository.restoreDeletionGroup(undoReceipt.groupId, undoReceipt);
+      } else if (undoReceipt.kind === 'routine' || undoReceipt.kind === 'routineItem') {
+        await routineRepository.restoreDeletionGroup(undoReceipt.groupId);
       } else {
         await plannerRepository.restoreDeletionGroup(undoReceipt.groupId, undoReceipt);
       }

@@ -63,6 +63,33 @@ export function DashboardCard({
             Add a task
           </Button>
         </div>
+      ) : config.type === 'currentRoutine' && data.currentRoutine ? (
+        <div className="dashboard-current-routine">
+          <span
+            className="routine-color"
+            style={{ backgroundColor: data.currentRoutine.color }}
+            aria-hidden="true"
+          />
+          <div>
+            <strong>{data.currentRoutine.name}</strong>
+            {data.currentRoutine.currentItem ? (
+              <span>{data.currentRoutine.currentItem}</span>
+            ) : null}
+            <span>
+              {data.currentRoutine.completed} of {data.currentRoutine.total}
+            </span>
+          </div>
+          <Link
+            className="button button--secondary"
+            to={
+              data.currentRoutine.runId
+                ? `/routines?run=${encodeURIComponent(data.currentRoutine.runId)}`
+                : `/routines?start=${encodeURIComponent(data.currentRoutine.routineId)}&date=${encodeURIComponent(today)}`
+            }
+          >
+            {data.currentRoutine.action}
+          </Link>
+        </div>
       ) : tasks.length > 0 || events.length > 0 ? (
         <>
           {events.length ? (

@@ -2762,6 +2762,281 @@ select {
   }
 }
 
+.page--routines,
+.routine-editor,
+.routine-run {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.page--routines {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.routine-heading,
+.routine-review .section-heading,
+.routine-today .section-heading,
+.routine-library .section-heading,
+.routine-history .section-heading {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.routine-heading > *,
+.routine-review li > *,
+.routine-library-list li > *,
+.plan-routine-list li > *,
+.dashboard-current-routine > * {
+  min-width: 0;
+}
+
+.routine-review,
+.routine-today,
+.routine-library,
+.routine-history {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  padding: var(--space-4);
+}
+
+.routine-review-list,
+.routine-library-list,
+.routine-status-section ul,
+.routine-history ul,
+.routine-item-editor-list,
+.variant-item-list,
+.routine-run-items,
+.plan-routine-list {
+  display: grid;
+  gap: var(--space-2);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.routine-review-list li,
+.routine-library-list > li,
+.routine-status-section li,
+.routine-history li,
+.plan-routine-list li,
+.dashboard-current-routine {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-secondary);
+}
+
+.routine-review-list li,
+.routine-library-list > li {
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.routine-review-list li > div:first-child,
+.routine-library-list__summary,
+.routine-status-section li > button span:last-child,
+.dashboard-current-routine > div,
+.plan-routine-list li > div {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.routine-color {
+  inline-size: 0.9rem;
+  block-size: 0.9rem;
+  flex: 0 0 auto;
+  border: 1px solid var(--color-text-secondary);
+  border-radius: 999px;
+}
+
+.routine-status-section {
+  display: grid;
+  gap: var(--space-2);
+  padding-block: var(--space-3);
+  border-block-start: 1px solid var(--color-border);
+}
+
+.routine-status-section li > button,
+.routine-history li > button {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  gap: var(--space-3);
+  align-items: center;
+  padding: 0;
+  color: inherit;
+  text-align: start;
+  background: transparent;
+  border: 0;
+}
+
+.routine-status-section li > .button,
+.plan-routine-list li > .button {
+  margin-inline-start: auto;
+}
+
+.routine-editor__section,
+.routine-variant-editor,
+.routine-item-editor-list > li {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.routine-item-editor-list > li,
+.routine-variant-editor {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-secondary);
+}
+
+.routine-style-options,
+.weekday-options {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+}
+
+.routine-style-options label,
+.weekday-options label,
+.variant-item-list li,
+.variant-item-list label {
+  display: flex;
+  min-width: 0;
+  min-height: 44px;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.routine-style-options label {
+  align-items: flex-start;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2);
+}
+
+.routine-style-options span {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.variant-item-list li {
+  justify-content: space-between;
+  padding-block: var(--space-1);
+  border-block-end: 1px solid var(--color-border);
+}
+
+.routine-run__progress {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.routine-run progress {
+  width: 100%;
+  accent-color: var(--routine-color, var(--color-primary));
+}
+
+.routine-run-items li,
+.routine-step-view > li {
+  display: block;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-secondary);
+}
+
+.routine-run-items label,
+.routine-step-view > li label {
+  display: flex;
+  min-height: 44px;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.routine-run-items label > span,
+.routine-step-view label > span {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+  overflow-wrap: anywhere;
+}
+
+.routine-run-items .is-completed strong,
+.routine-step-view .is-completed strong {
+  color: var(--color-text-secondary);
+  text-decoration: line-through;
+}
+
+.routine-run-items--compact {
+  gap: var(--space-1);
+}
+
+.routine-run-items--compact li {
+  padding-block: var(--space-1);
+}
+
+.routine-step-view,
+.routine-run__state {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.routine-run__state {
+  padding: var(--space-3);
+  border-inline-start: 0.25rem solid var(--routine-color, var(--color-primary));
+  background: var(--color-surface-secondary);
+}
+
+.dashboard-current-routine > div {
+  flex: 1 1 auto;
+}
+
+.agenda-routines .section-heading {
+  align-items: start;
+}
+
+.plan-routine-list li > div {
+  flex: 1 1 auto;
+}
+
+@media (max-width: 42rem) {
+  .routine-heading,
+  .routine-review .section-heading,
+  .routine-today .section-heading,
+  .routine-library .section-heading,
+  .routine-history .section-heading,
+  .routine-review-list li,
+  .routine-library-list > li,
+  .plan-routine-list li,
+  .dashboard-current-routine {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .routine-heading .inline-actions,
+  .routine-review-list .inline-actions,
+  .routine-library-list .inline-actions,
+  .routine-step-controls {
+    align-items: stretch;
+  }
+
+  .routine-heading .button,
+  .routine-review-list .button,
+  .routine-library-list .button,
+  .dashboard-current-routine .button {
+    width: 100%;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

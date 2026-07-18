@@ -1,11 +1,12 @@
 # Planibly
 
 Planibly is a zero-cost, private, offline-first personal planning PWA. This repository currently
-implements the installable foundation and the local planning system through **Phase 3C**. Alongside
+implements the installable foundation and the local planning system through **Phase 4A**. Alongside
 organisation, projects, search, recovery, planning, capacity, and the configurable Home dashboard,
 it now includes private internal calendars, appointments, recurring occurrences, reusable event
-templates, and local ICS import/export with explicit preview and conflict handling. Live calendar
-synchronisation, reminders, provider accounts, and timelines remain out of scope.
+templates, local ICS import/export, and flexible personal routines with durable daily runs. Live
+calendar synchronisation, reminders, provider accounts, timers, reviews, scores, and streaks remain
+out of scope.
 
 ## What Phase 0 contains
 
@@ -102,6 +103,17 @@ synchronisation, reminders, provider accounts, and timelines remain out of scope
 - Validated ICS export for events, series, occurrences, calendars, date ranges, and visible calendars
 - Web Share file handoff where supported and an always-available download fallback
 - Dexie schema version 11 with import-source, import-batch, and external-record mapping stores
+
+## What Phase 4A contains
+
+- Independent routine definitions with ordered one-level items, optional local schedules, and calm time-of-day sections
+- Optional weekday variants that change item inclusion, ordering, and presentation without creating tasks
+- Checklist, Step by Step, and Compact run presentations, with a per-run style override
+- One resumable snapshot-based run per routine/local date, explicit completion, reopening, and neutral skipping
+- Today, manual, previously scheduled, and recent-run views in a responsive Routines workspace
+- Optional Current Routine dashboard card and informational Plan-agenda integration
+- Routine and item recovery, ten-second routine undo, and permanent definition deletion that preserves run history
+- Dexie schema version 12 with definition, item, variant, run snapshot, and occurrence-adjustment stores
 
 There is no backend, account, analytics, external AI, paid service, provider OAuth, or native iOS
 integration. ICS transfer creates a copy; later changes do not synchronise automatically.
@@ -204,5 +216,6 @@ See [Docs/phase-0-architecture.md](Docs/phase-0-architecture.md),
 [Docs/phase-2c-architecture.md](Docs/phase-2c-architecture.md), and
 [Docs/phase-3a-architecture.md](Docs/phase-3a-architecture.md), and
 [Docs/phase-3b-architecture.md](Docs/phase-3b-architecture.md), and
-[Docs/phase-3c-architecture.md](Docs/phase-3c-architecture.md) for the current architecture, data
+[Docs/phase-3c-architecture.md](Docs/phase-3c-architecture.md), and
+[Docs/phase-4a-architecture.md](Docs/phase-4a-architecture.md) for the current architecture, data
 invariants, safety bounds, and manual device checks.

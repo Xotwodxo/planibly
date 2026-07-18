@@ -1,3 +1,12 @@
+import type {
+  RoutineItemRecord,
+  RoutineOccurrenceAdjustmentRecord,
+  RoutineRecord,
+  RoutineRunItemRecord,
+  RoutineRunRecord,
+  RoutineVariantRecord,
+} from './routineTypes';
+
 export const STARTER_DATA_VERSION = 1;
 
 export const INBOX_LIST_ID = '10000000-0000-4000-8000-000000000001';
@@ -295,7 +304,16 @@ export type TaskRelationshipRecord = {
 };
 
 export type DeletionEntityKind =
-  'area' | 'list' | 'task' | 'step' | 'calendar' | 'event' | 'occurrence' | 'template';
+  | 'area'
+  | 'list'
+  | 'task'
+  | 'step'
+  | 'calendar'
+  | 'event'
+  | 'occurrence'
+  | 'template'
+  | 'routine'
+  | 'routineItem';
 
 export type DeletionReceipt = {
   groupId: string;
@@ -377,6 +395,12 @@ export type PlannerSnapshot = {
   recurrenceRules: RecurrenceRuleRecord[];
   recurrenceExceptions: RecurrenceExceptionRecord[];
   eventTemplates: EventTemplateRecord[];
+  routines: RoutineRecord[];
+  routineItems: RoutineItemRecord[];
+  routineVariants: RoutineVariantRecord[];
+  routineRuns: RoutineRunRecord[];
+  routineRunItems: RoutineRunItemRecord[];
+  routineOccurrenceAdjustments: RoutineOccurrenceAdjustmentRecord[];
   blockedByTaskId: Record<string, string[]>;
   projectProgressByListId: Record<string, ProjectProgress>;
   deletedAreas: AreaRecord[];
@@ -386,4 +410,6 @@ export type PlannerSnapshot = {
   deletedCalendars: CalendarRecord[];
   deletedCalendarEvents: CalendarEventRecord[];
   deletedEventTemplates: EventTemplateRecord[];
+  deletedRoutines: RoutineRecord[];
+  deletedRoutineItems: RoutineItemRecord[];
 };

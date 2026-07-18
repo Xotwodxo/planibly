@@ -55,9 +55,17 @@ function snapshot(tasks: TaskRecord[] = []): PlannerSnapshot {
     recurrenceRules: [],
     recurrenceExceptions: [],
     eventTemplates: [],
+    routines: [],
+    routineItems: [],
+    routineVariants: [],
+    routineRuns: [],
+    routineRunItems: [],
+    routineOccurrenceAdjustments: [],
     deletedCalendars: [],
     deletedCalendarEvents: [],
     deletedEventTemplates: [],
+    deletedRoutines: [],
+    deletedRoutineItems: [],
     blockedByTaskId: {},
     projectProgressByListId: {},
     deletedAreas: [],
@@ -85,13 +93,14 @@ describe('dashboard configuration', () => {
       { type: 'futureCard', size: 'wide', order: 0, hidden: false },
     ]);
 
-    expect(normalized).toHaveLength(9);
+    expect(normalized).toHaveLength(10);
     expect(normalized.find((card) => card.type === 'today')).toMatchObject({
       size: 'standard',
       hidden: true,
     });
     expect(normalized.find((card) => card.type === 'quickAdd')?.hidden).toBe(false);
-    expect(normalized.map((card) => card.order)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(normalized.find((card) => card.type === 'currentRoutine')?.hidden).toBe(true);
+    expect(normalized.map((card) => card.order)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
   });
 
   it('reorders, hides, restores, and resizes cards without mutating the source', () => {
@@ -102,10 +111,10 @@ describe('dashboard configuration', () => {
     const resized = setDashboardCardSize(restored, 'today', 'wide');
 
     expect(source.find((card) => card.type === 'today')).toMatchObject({
-      order: 1,
+      order: 2,
       size: 'standard',
     });
-    expect(moved.find((card) => card.type === 'today')?.order).toBe(0);
+    expect(moved.find((card) => card.type === 'today')?.order).toBe(1);
     expect(hidden.find((card) => card.type === 'today')?.hidden).toBe(true);
     expect(restored.find((card) => card.type === 'today')?.hidden).toBe(false);
     expect(resized.find((card) => card.type === 'today')?.size).toBe('wide');
@@ -177,6 +186,67 @@ describe('dashboard card queries', () => {
       'done-3',
       'done-2',
     ]);
+  });
+
+  it('shows an in-progress routine before the next scheduled routine', () => {
+    const data = snapshot();
+    data.routines.push({
+      id: 'routine-1',
+      name: 'Morning routine',
+      color: '#5B67C8',
+      isActive: true,
+      presentationStyle: 'checklist',
+      scheduleKind: 'daily',
+      selectedWeekdays: [],
+      defaultSection: 'morning',
+      order: 0,
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    data.routineItems.push({
+      id: 'routine-item-1',
+      routineId: 'routine-1',
+      title: 'Open curtains',
+      order: 0,
+      isActive: true,
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    expect(
+      dashboardCardDataFromSnapshot(data, 'currentRoutine', '2026-07-15').currentRoutine,
+    ).toMatchObject({
+      name: 'Morning routine',
+      action: 'Start',
+      total: 1,
+    });
+
+    data.routineRuns.push({
+      id: 'run-1',
+      routineId: 'routine-1',
+      routineName: 'Morning snapshot',
+      routineColor: '#5B67C8',
+      localDate: '2026-07-15',
+      presentationStyle: 'checklist',
+      status: 'inProgress',
+      startedAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    data.routineRunItems.push({
+      id: 'run-item-1',
+      runId: 'run-1',
+      title: 'Saved item',
+      order: 0,
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    expect(
+      dashboardCardDataFromSnapshot(data, 'currentRoutine', '2026-07-15').currentRoutine,
+    ).toMatchObject({
+      name: 'Morning snapshot',
+      currentItem: 'Saved item',
+      action: 'Continue',
+      runId: 'run-1',
+    });
   });
 
   it('offers explainable, dismissable suggestions without changing configuration', () => {

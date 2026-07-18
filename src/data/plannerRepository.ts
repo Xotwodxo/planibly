@@ -2,6 +2,7 @@ import { database, type PlaniblyDatabase } from './database';
 import { agendaGroupForTask } from './agenda';
 import { isValidCalendarEventRecord } from './calendar';
 import { isValidEventTemplateRecord } from './recurrence';
+import { isValidRoutineItemRecord, isValidRoutineRecord } from './routine';
 import {
   localDateFromDate,
   planningOverviewFromSnapshot,
@@ -99,6 +100,8 @@ function requiredText(value: string, label: string): string {
   return trimmed;
 }
 
+type PlannerDeletionEntityKind = Exclude<DeletionEntityKind, 'routine' | 'routineItem'>;
+
 function normalizeTagName(value: string): string {
   return requiredText(value, 'Tag name').toLocaleLowerCase();
 }
@@ -134,6 +137,12 @@ export class PlannerRepository {
       recurrenceRules,
       recurrenceExceptions,
       eventTemplates,
+      routines,
+      routineItems,
+      routineVariants,
+      routineRuns,
+      routineRunItems,
+      routineOccurrenceAdjustments,
     ] = await Promise.all([
       this.db.areas.toArray(),
       this.db.lists.toArray(),
@@ -148,10 +157,24 @@ export class PlannerRepository {
       this.db.recurrenceRules.toArray(),
       this.db.recurrenceExceptions.toArray(),
       this.db.eventTemplates.toArray(),
+      this.db.routines.toArray(),
+      this.db.routineItems.toArray(),
+      this.db.routineVariants.toArray(),
+      this.db.routineRuns.toArray(),
+      this.db.routineRunItems.toArray(),
+      this.db.routineOccurrenceAdjustments.toArray(),
     ]);
     const activeTasks = tasks.filter(active).sort(byOrder);
     const activeTaskIds = new Set(activeTasks.map((task) => task.id));
     const activeTags = tags.filter(active);
+    const activeRoutines = routines.filter(active).filter(isValidRoutineRecord).sort(byOrder);
+    const activeRoutineIds = new Set(activeRoutines.map((routine) => routine.id));
+    const activeRoutineItems = routineItems
+      .filter(active)
+      .filter(isValidRoutineItemRecord)
+      .filter((item) => activeRoutineIds.has(item.routineId))
+      .sort(byOrder);
+    const activeRoutineItemIds = new Set(activeRoutineItems.map((item) => item.id));
     const activeTagIds = new Set(activeTags.map((tag) => tag.id));
     const activeRelationships = taskRelationships.filter(
       (relationship) =>
@@ -214,6 +237,26 @@ export class PlannerRepository {
         .filter(active)
         .filter(isValidEventTemplateRecord)
         .sort(byOrder),
+      routines: activeRoutines,
+      routineItems: activeRoutineItems,
+      routineVariants: routineVariants
+        .filter(
+          (variant) =>
+            active(variant) &&
+            activeRoutineIds.has(variant.routineId) &&
+            variant.name.trim().length > 0 &&
+            variant.weekdays.every(
+              (weekday) => Number.isInteger(weekday) && weekday >= 0 && weekday <= 6,
+            ),
+        )
+        .map((variant) => ({
+          ...variant,
+          itemIds: variant.itemIds.filter((id) => activeRoutineItemIds.has(id)),
+        }))
+        .sort(byOrder),
+      routineRuns: routineRuns.sort((left, right) => right.localDate.localeCompare(left.localDate)),
+      routineRunItems: routineRunItems.sort(byOrder),
+      routineOccurrenceAdjustments,
       blockedByTaskId,
       projectProgressByListId: Object.fromEntries(
         lists
@@ -252,6 +295,8 @@ export class PlannerRepository {
       deletedEventTemplates: eventTemplates
         .filter((template) => !active(template))
         .sort(byDeletedAtDescending),
+      deletedRoutines: routines.filter((routine) => !active(routine)).sort(byDeletedAtDescending),
+      deletedRoutineItems: routineItems.filter((item) => !active(item)).sort(byDeletedAtDescending),
     };
   }
 
@@ -964,7 +1009,7 @@ export class PlannerRepository {
   }
 
   public async restoreDeletedEntity(
-    kind: DeletionEntityKind,
+    kind: PlannerDeletionEntityKind,
     id: string,
     restoreParents = false,
   ): Promise<void> {
@@ -1073,7 +1118,7 @@ export class PlannerRepository {
     this.notify();
   }
 
-  public async permanentlyDelete(kind: DeletionEntityKind, id: string): Promise<void> {
+  public async permanentlyDelete(kind: PlannerDeletionEntityKind, id: string): Promise<void> {
     await this.db.transaction(
       'rw',
       [
@@ -1167,7 +1212,10 @@ export class PlannerRepository {
     return { deletedAt: undefined, deletionGroupId: undefined, modifiedAt: now };
   }
 
-  private async getDeletedParentLabels(kind: DeletionEntityKind, id: string): Promise<string[]> {
+  private async getDeletedParentLabels(
+    kind: PlannerDeletionEntityKind,
+    id: string,
+  ): Promise<string[]> {
     const labels: string[] = [];
     let list: PlanListRecord | undefined;
     let task: TaskRecord | undefined;
@@ -1195,7 +1243,7 @@ export class PlannerRepository {
   }
 
   private async restoreRequiredParents(
-    kind: DeletionEntityKind,
+    kind: PlannerDeletionEntityKind,
     id: string,
     now: string,
   ): Promise<void> {

@@ -811,6 +811,93 @@ test('dashboard cards respond without horizontal overflow at large text', async 
   await expect(page.getByRole('button', { name: 'Customise dashboard' })).toBeVisible();
 });
 
+test('persists a mobile routine run through reload and offline reopening', async ({
+  page,
+  context,
+}, testInfo) => {
+  test.skip(!testInfo.project.name.includes('mobile'), 'Mobile-only Phase 4A flow');
+  await page.goto('/planibly/routines');
+  await expect(
+    page.getByRole('heading', { name: 'Support the day without making it rigid' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Create routine' }).first().click();
+  const editor = page.getByRole('dialog', { name: 'Create routine' });
+  await editor.getByLabel('Name').fill('Mobile offline routine');
+  await editor.getByLabel('Item title').fill('First saved item');
+  await editor.getByRole('button', { name: 'Add item' }).click();
+  await editor.getByLabel('Item title').nth(1).fill('Second saved item');
+  await editor.getByRole('radio', { name: /Step by Step/ }).check();
+  await editor.getByRole('button', { name: 'Save routine' }).click();
+
+  const library = page.getByRole('region', { name: 'All Routines' });
+  const routineRow = library.getByRole('listitem').filter({ hasText: 'Mobile offline routine' });
+  await routineRow.getByRole('button', { name: 'Start' }).click();
+  let run = page.getByRole('dialog', { name: 'Mobile offline routine' });
+  await run.getByRole('checkbox', { name: /First saved item/ }).click();
+  await expect(run.getByText('1 of 2').first()).toBeVisible();
+
+  await page.reload();
+  const inProgress = page.getByRole('region', { name: 'Daily routine runs' });
+  await inProgress.getByRole('button', { name: /Mobile offline routine/ }).click();
+  run = page.getByRole('dialog', { name: 'Mobile offline routine' });
+  await run.getByRole('button', { name: 'Show Full Routine' }).click();
+  await expect(run.getByRole('checkbox', { name: /First saved item/ })).toBeChecked();
+  await run.getByRole('checkbox', { name: /Second saved item/ }).click();
+  await expect(run.getByText('2 of 2').first()).toBeVisible();
+  await run.getByRole('button', { name: 'Mark routine complete' }).click();
+  await expect(run.getByText('Completed')).toBeVisible();
+  await run.getByRole('button', { name: 'Close dialog' }).click();
+
+  await page.evaluate(async () => navigator.serviceWorker.ready);
+  await context.setOffline(true);
+  try {
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(
+      page.getByRole('heading', { name: 'Support the day without making it rigid' }),
+    ).toBeVisible();
+    const completed = page.getByRole('region', { name: 'Daily routine runs' });
+    await expect(completed.getByRole('button', { name: /Mobile offline routine/ })).toBeVisible();
+    await completed.getByRole('button', { name: /Mobile offline routine/ }).click();
+    await expect(page.getByRole('dialog', { name: 'Mobile offline routine' })).toContainText(
+      'Completed',
+    );
+  } finally {
+    await context.setOffline(false);
+  }
+});
+
+test('keeps the routines workspace contained at large text', async ({ page }) => {
+  await page.goto('/planibly/routines');
+  await expect(
+    page.getByRole('heading', { name: 'Support the day without making it rigid' }),
+  ).toBeVisible();
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '200%';
+  });
+  const overflow = await page.evaluate(() => {
+    const clientWidth = document.documentElement.clientWidth;
+    return {
+      clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+      offenders: Array.from(document.querySelectorAll<HTMLElement>('body *'))
+        .map((element) => {
+          const rectangle = element.getBoundingClientRect();
+          return {
+            element: `${element.tagName.toLowerCase()}.${element.className}`,
+            left: Math.round(rectangle.left),
+            right: Math.round(rectangle.right),
+          };
+        })
+        .filter((element) => element.right > clientWidth + 1 || element.left < -1)
+        .slice(0, 12),
+    };
+  });
+  expect(overflow.scrollWidth, JSON.stringify(overflow.offenders)).toBeLessThanOrEqual(
+    overflow.clientWidth,
+  );
+  await expect(page.getByRole('region', { name: 'All Routines' })).toBeVisible();
+});
+
 test('reloads the application shell while offline', async ({ page, context }) => {
   await page.goto(githubPagesBasePath);
   await expect(page.getByRole('heading', { name: 'A calm view of what matters' })).toBeVisible();

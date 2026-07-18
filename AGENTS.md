@@ -3,9 +3,10 @@
 ## Scope
 
 Read `Docs/planibly-pwa-product-specification.md` before product work and follow its phased roadmap.
-The current boundary is Phase 3C: local ICS import, export, provenance, and device-calendar file
-handoff. Do not add live provider sync, OAuth, CalDAV, reminders, timelines, drag scheduling, automatic scheduling,
-shopping-specific behavior, productivity scoring, or insights until explicitly begun.
+The current boundary is Phase 4A: routine definitions, optional local-calendar schedules, day
+variants, and explicit daily routine runs. Do not add preparation checklists, timers, focus modes,
+reviews, summaries, pattern analysis, scores, streaks, reminders, automatic routine changes,
+calendar conversion, live provider sync, or later-phase features until explicitly begun.
 
 Planibly must remain free, private, local-first, and useful without a backend. Do not add accounts,
 analytics, advertising, paid services, external AI, native iOS claims, or silent network reporting.

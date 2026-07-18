@@ -8,6 +8,7 @@ import { addCalendarDays, localDateFromDate } from '../data/planning';
 import { plannerRepository } from '../data/plannerRepository';
 import { calendarRepository } from '../data/calendarRepository';
 import { DEFAULT_CALENDAR_ID } from '../data/plannerTypes';
+import { routineRepository } from '../data/routineRepository';
 import { TaskEditorDialog } from '../features/planner/TaskEditorDialog';
 
 async function resetDatabase() {
@@ -257,5 +258,41 @@ describe('Phase 2A planning interface', () => {
     });
     expect((await database.tasks.get(task.id))?.plannedDate).toBeUndefined();
     await waitFor(() => expect(within(source).queryByRole('button', { name: 'Plan' })).toBeNull());
+  });
+
+  it('shows routines separately without changing task capacity and opens a daily run', async () => {
+    const today = localDateFromDate(new Date());
+    await routineRepository.saveRoutine({
+      name: 'Plan morning routine',
+      color: '#5B67C8',
+      isActive: true,
+      expectedDurationMinutes: 20,
+      presentationStyle: 'checklist',
+      scheduleKind: 'daily',
+      selectedWeekdays: [],
+      defaultSection: 'morning',
+      items: [
+        {
+          id: crypto.randomUUID(),
+          title: 'Prepare the day',
+          order: 0,
+          isActive: true,
+        },
+      ],
+      variants: [],
+    });
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/plan']}>
+        <App />
+      </MemoryRouter>,
+    );
+    const routines = await screen.findByRole('region', { name: 'Routines' });
+    expect(within(routines).getByText('Plan morning routine')).toBeVisible();
+    expect(within(routines).getByText(/20 min expected/)).toBeVisible();
+    expect(within(routines).getByText(/does not change task capacity/)).toBeVisible();
+    await user.click(within(routines).getByRole('button', { name: 'Start' }));
+    expect(await screen.findByRole('dialog', { name: 'Plan morning routine' })).toBeVisible();
+    expect(await database.routineRuns.where('localDate').equals(today).count()).toBe(1);
   });
 });

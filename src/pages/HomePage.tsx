@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import { Button } from '../components/ui/Button';
 import { Dialog } from '../components/ui/Dialog';
@@ -153,6 +154,9 @@ export function HomePage() {
         </div>
         {!isCustomizing ? (
           <div className="dashboard-heading__controls">
+            <Link className="button button--secondary" to="/routines">
+              Routines
+            </Link>
             <label className="field dashboard-layout-select">
               <span>Dashboard layout</span>
               <select

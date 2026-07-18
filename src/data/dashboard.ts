@@ -14,6 +14,7 @@ import {
 import { smartTasksFromSnapshot } from './planning';
 import { eventsForDate } from './calendar';
 import { expandCalendarOccurrences } from './recurrence';
+import { routinesForDate, runProgress } from './routine';
 import type {
   CalendarOccurrence,
   PlanListRecord,
@@ -23,7 +24,7 @@ import type {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const BUILT_IN_KEYS = ['overview', 'focus', 'planning'] as const;
-const SUGGESTION_TYPES = ['addOverdue', 'addProjectNextActions'] as const;
+const SUGGESTION_TYPES = ['addOverdue', 'addProjectNextActions', 'addCurrentRoutine'] as const;
 
 export const RECENTLY_COMPLETED_LIMIT = 5;
 
@@ -37,6 +38,18 @@ export type DashboardCardData = {
   projectNextActions: ProjectNextAction[];
   events: CalendarOccurrence[];
   totalCount: number;
+  currentRoutine?: CurrentRoutineData;
+};
+
+export type CurrentRoutineData = {
+  routineId: string;
+  runId?: string;
+  name: string;
+  color: string;
+  currentItem?: string;
+  completed: number;
+  total: number;
+  action: 'Start' | 'Continue';
 };
 
 export type DashboardSuggestion = {
@@ -198,6 +211,7 @@ export function dashboardCardDataFromSnapshot(
   let tasks: TaskRecord[] = [];
   let projectNextActions: ProjectNextAction[] = [];
   let events: CalendarOccurrence[] = [];
+  let currentRoutine: CurrentRoutineData | undefined;
   switch (type) {
     case 'today':
       tasks = smartTasksFromSnapshot(snapshot, 'today', today);
@@ -226,6 +240,9 @@ export function dashboardCardDataFromSnapshot(
     case 'recentlyCompleted':
       tasks = recentlyCompletedFromSnapshot(snapshot);
       break;
+    case 'currentRoutine':
+      currentRoutine = currentRoutineFromSnapshot(snapshot, today);
+      break;
     case 'quickAdd':
       break;
   }
@@ -233,7 +250,46 @@ export function dashboardCardDataFromSnapshot(
     tasks,
     projectNextActions,
     events,
-    totalCount: tasks.length + events.length || projectNextActions.length,
+    totalCount: currentRoutine ? 1 : tasks.length + events.length || projectNextActions.length,
+    currentRoutine,
+  };
+}
+
+export function currentRoutineFromSnapshot(
+  snapshot: PlannerSnapshot,
+  today: string,
+): CurrentRoutineData | undefined {
+  const inProgress = snapshot.routineRuns
+    .filter((run) => run.localDate === today && run.status === 'inProgress')
+    .sort((left, right) => left.startedAt.localeCompare(right.startedAt))[0];
+  if (inProgress) {
+    const progress = runProgress(inProgress, snapshot.routineRunItems);
+    return {
+      routineId: inProgress.routineId,
+      runId: inProgress.id,
+      name: inProgress.routineName,
+      color: inProgress.routineColor,
+      currentItem: progress.currentItem?.title,
+      completed: progress.completed,
+      total: progress.total,
+      action: 'Continue',
+    };
+  }
+  const runRoutineIds = new Set(
+    snapshot.routineRuns.filter((run) => run.localDate === today).map((run) => run.routineId),
+  );
+  const next = routinesForDate(snapshot, today).find(
+    ({ routine }) => !runRoutineIds.has(routine.id),
+  );
+  if (!next) return undefined;
+  return {
+    routineId: next.routine.id,
+    name: next.routine.name,
+    color: next.routine.color,
+    currentItem: next.items[0]?.title,
+    completed: 0,
+    total: next.items.length,
+    action: 'Start',
   };
 }
 
@@ -251,6 +307,7 @@ export function dashboardCardLink(type: DashboardCardType): string | undefined {
     blockedTasks: '/lists?smart=blocked',
     projectNextActions: '/lists',
     recentlyCompleted: '/lists?smart=completed',
+    currentRoutine: '/routines',
   };
   return links[type];
 }
@@ -266,6 +323,7 @@ export function dashboardEmptyMessage(type: DashboardCardType): string {
     blockedTasks: 'Nothing is blocked.',
     projectNextActions: 'No project has an available next action.',
     recentlyCompleted: 'Completed tasks will appear here.',
+    currentRoutine: 'No routine is waiting for today.',
   };
   return messages[type];
 }
@@ -300,6 +358,17 @@ export function dashboardSuggestions(
       type: 'addProjectNextActions',
       cardType: 'projectNextActions',
       message: 'An active project has a next action. You can add that card to Home.',
+    });
+  }
+  if (
+    hidden.has('currentRoutine') &&
+    !dismissed.has('addCurrentRoutine') &&
+    snapshot.routines.some((routine) => routine.isActive)
+  ) {
+    suggestions.push({
+      type: 'addCurrentRoutine',
+      cardType: 'currentRoutine',
+      message: 'Active routines are available. You can add the Current Routine card to Home.',
     });
   }
   return suggestions;

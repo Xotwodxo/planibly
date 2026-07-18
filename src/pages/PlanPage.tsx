@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import { Button } from '../components/ui/Button';
 import { Dialog } from '../components/ui/Dialog';
@@ -19,11 +20,15 @@ import { eventsForDate, scheduledEventMinutes, timeOverlaps } from '../data/cale
 import { expandCalendarOccurrences } from '../data/recurrence';
 import { addCalendarDays, formatLocalDate, isLocalDate, localDateFromDate } from '../data/planning';
 import { plannerRepository } from '../data/plannerRepository';
+import { routinesForDate, runProgress } from '../data/routine';
+import { routineRepository } from '../data/routineRepository';
+import { ROUTINE_SECTION_LABELS } from '../data/routineTypes';
 import type { CalendarOccurrence, PlannerSnapshot, TaskRecord } from '../data/plannerTypes';
 import { EventEditorDialog } from '../features/calendar/EventEditorDialog';
 import { TaskEditorDialog } from '../features/planner/TaskEditorDialog';
 import { usePlannerSnapshot } from '../features/planner/usePlannerSnapshot';
 import { usePlanningCapacities } from '../features/planner/usePlanningCapacities';
+import { RoutineRunDialog } from '../features/routines/RoutineRunDialog';
 
 type ReviewAction = 'today' | 'tomorrow' | 'date' | 'remove' | 'leave';
 
@@ -35,6 +40,7 @@ export function PlanPage() {
   const [horizonStart, setHorizonStart] = useState(today);
   const [editingTask, setEditingTask] = useState<TaskRecord | null>(null);
   const [editingEvent, setEditingEvent] = useState<CalendarOccurrence | null>(null);
+  const [routineRunId, setRoutineRunId] = useState<string>();
   const [announcement, setAnnouncement] = useState('');
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   const [bulkDate, setBulkDate] = useState(today);
@@ -70,6 +76,10 @@ export function PlanPage() {
     [horizonStart, snapshot],
   );
   const earlier = useMemo(() => previouslyPlannedTasks(snapshot, today), [snapshot, today]);
+  const dayRoutines = useMemo(
+    () => routinesForDate(snapshot, selectedDate),
+    [selectedDate, snapshot],
+  );
 
   if (isLoading) return <p role="status">Opening your plan…</p>;
 
@@ -89,6 +99,13 @@ export function PlanPage() {
       () => plannerRepository.setTaskCompleted(task.id, completed),
       completed ? `${task.title} completed.` : `${task.title} returned to the plan.`,
     );
+  }
+
+  async function openRoutine(routineId: string) {
+    await act(async () => {
+      const run = await routineRepository.createOrResumeRun(routineId, selectedDate);
+      setRoutineRunId(run.id);
+    }, 'Routine opened.');
   }
 
   async function applyBulk(move: boolean) {
@@ -202,9 +219,63 @@ export function PlanPage() {
           </div>
           <span>
             {dayEvents.length} events ·{' '}
-            {groups.reduce((total, group) => total + group.tasks.length, 0)} tasks
+            {groups.reduce((total, group) => total + group.tasks.length, 0)} tasks ·{' '}
+            {dayRoutines.length} routines
           </span>
         </div>
+        <section className="agenda-group agenda-routines" aria-labelledby="agenda-routines-heading">
+          <div className="section-heading">
+            <div>
+              <h3 id="agenda-routines-heading">Routines</h3>
+              <p>Informational only; routine time does not change task capacity.</p>
+            </div>
+            <Link to="/routines">Manage routines</Link>
+          </div>
+          {dayRoutines.length ? (
+            <ul className="plan-routine-list">
+              {dayRoutines.map(({ routine, items, movedFromDate }) => {
+                const run = snapshot.routineRuns.find(
+                  (candidate) =>
+                    candidate.routineId === routine.id && candidate.localDate === selectedDate,
+                );
+                const progress = run ? runProgress(run, snapshot.routineRunItems) : undefined;
+                return (
+                  <li key={routine.id}>
+                    <span
+                      className="routine-color"
+                      style={{ backgroundColor: routine.color }}
+                      aria-hidden="true"
+                    />
+                    <div>
+                      <strong>{routine.name}</strong>
+                      <span>
+                        {ROUTINE_SECTION_LABELS[routine.defaultSection]}
+                        {routine.expectedDurationMinutes
+                          ? ` - ${routine.expectedDurationMinutes} min expected`
+                          : ''}
+                      </span>
+                      <small>
+                        {run
+                          ? `${run.status === 'inProgress' ? 'In progress' : run.status === 'completed' ? 'Completed' : 'Skipped'} - ${progress?.completed ?? 0} of ${progress?.total ?? items.length}`
+                          : 'Not started'}
+                        {movedFromDate ? ` - moved from ${formatLocalDate(movedFromDate)}` : ''}
+                      </small>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => (run ? setRoutineRunId(run.id) : void openRoutine(routine.id))}
+                    >
+                      {run ? 'Open' : 'Start'}
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="plan-empty">No active routines are scheduled for this date.</p>
+          )}
+        </section>
         <section className="agenda-group agenda-events" aria-labelledby="agenda-events-heading">
           <h3 id="agenda-events-heading">Appointments</h3>
           {dayEvents.length ? (
@@ -477,6 +548,14 @@ export function PlanPage() {
           initialDate={selectedDate}
           onAnnounce={setAnnouncement}
           onClose={() => setEditingEvent(null)}
+        />
+      ) : null}
+      {routineRunId ? (
+        <RoutineRunDialog
+          runId={routineRunId}
+          snapshot={snapshot}
+          onClose={() => setRoutineRunId(undefined)}
+          onAnnounce={setAnnouncement}
         />
       ) : null}
       {reviewAction ? (

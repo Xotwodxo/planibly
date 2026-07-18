@@ -7,6 +7,7 @@ import { database, initializeDatabase } from '../data/database';
 import { plannerRepository } from '../data/plannerRepository';
 import { calendarRepository } from '../data/calendarRepository';
 import { DEFAULT_CALENDAR_ID } from '../data/plannerTypes';
+import { routineRepository } from '../data/routineRepository';
 
 async function resetDatabase() {
   database.close();
@@ -316,5 +317,46 @@ describe('ListsPage', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Inbox' }));
     expect(await screen.findByRole('button', { name: 'Book garden room' })).toBeVisible();
+  });
+
+  it('includes routine definitions in Recently Deleted and restores their hierarchy', async () => {
+    const routine = await routineRepository.saveRoutine({
+      name: 'Recoverable routine',
+      color: '#5B67C8',
+      isActive: true,
+      presentationStyle: 'checklist',
+      scheduleKind: 'manual',
+      selectedWeekdays: [],
+      defaultSection: 'anyTime',
+      items: [{ id: crypto.randomUUID(), title: 'Restored item', order: 0, isActive: true }],
+      variants: [],
+    });
+    await routineRepository.deleteRoutine(routine.id);
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/lists']}>
+        <App />
+      </MemoryRouter>,
+    );
+    await user.click(await screen.findByRole('button', { name: 'Recently Deleted' }));
+    const deleted = await screen.findByText('Recoverable routine', {
+      selector: '.recovery-list strong',
+    });
+    const row = deleted.closest('li');
+    expect(row).not.toBeNull();
+    await user.click(within(row!).getByRole('button', { name: 'Restore' }));
+    await waitFor(async () =>
+      expect((await database.routines.get(routine.id))?.deletedAt).toBeUndefined(),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByText('Recoverable routine', { selector: '.recovery-list strong' }),
+      ).toBeNull(),
+    );
+    expect(
+      (await database.routineItems.where('routineId').equals(routine.id).toArray()).every(
+        (item) => !item.deletedAt,
+      ),
+    ).toBe(true);
   });
 });

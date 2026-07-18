@@ -6,6 +6,7 @@ import { Dialog } from '../components/ui/Dialog';
 import { Surface } from '../components/ui/Surface';
 import { calendarRepository } from '../data/calendarRepository';
 import { plannerRepository, RestoreParentRequiredError } from '../data/plannerRepository';
+import { routineRepository } from '../data/routineRepository';
 import { localDateFromDate, smartTasksFromSnapshot } from '../data/planning';
 import {
   INBOX_LIST_ID,
@@ -809,6 +810,25 @@ function RecentlyDeletedPanel({ snapshot }: { snapshot: PlannerSnapshot }) {
 
   async function restore(kind: DeletionEntityKind, id: string, withParents = false) {
     try {
+      if (kind === 'routine') {
+        await routineRepository.restoreRoutine(id);
+        setRecoveryAnnouncement('Routine restored.');
+        return;
+      }
+      if (kind === 'routineItem') {
+        const item = snapshot.deletedRoutineItems.find((candidate) => candidate.id === id);
+        const parent = item
+          ? snapshot.deletedRoutines.find((routine) => routine.id === item.routineId)
+          : undefined;
+        if (parent && !withParents) {
+          setRestoreRequest({ kind, id, parents: [`routine "${parent.name}"`] });
+          return;
+        }
+        await routineRepository.restoreItem(id, withParents);
+        setRecoveryAnnouncement('Routine item restored.');
+        setRestoreRequest(null);
+        return;
+      }
       if (kind === 'template') {
         await calendarRepository.restoreTemplate(id);
         setRecoveryAnnouncement('Event template restored.');
@@ -859,7 +879,8 @@ function RecentlyDeletedPanel({ snapshot }: { snapshot: PlannerSnapshot }) {
         <div className="empty-state">
           <h3>Nothing to recover</h3>
           <p>
-            Deleted calendars, events, areas, lists, projects, tasks, and steps will appear here.
+            Deleted calendars, events, routines, areas, lists, projects, tasks, and steps will
+            appear here.
           </p>
         </div>
       ) : (
@@ -909,7 +930,7 @@ function RecentlyDeletedPanel({ snapshot }: { snapshot: PlannerSnapshot }) {
       {permanentRequest ? (
         <ConfirmDialog
           title={`Permanently delete ${permanentRequest.label}?`}
-          description="This cannot be undone. Related steps, tag assignments, and relationships will be cleaned up."
+          description="This cannot be undone. Related definition records are cleaned up while historical routine runs remain intact."
           confirmLabel="Delete forever"
           onClose={() => setPermanentRequest(null)}
           onConfirm={() =>
@@ -920,10 +941,14 @@ function RecentlyDeletedPanel({ snapshot }: { snapshot: PlannerSnapshot }) {
                   ? calendarRepository.permanentlyDeleteEvent(permanentRequest.id)
                   : permanentRequest.kind === 'template'
                     ? calendarRepository.permanentlyDeleteTemplate(permanentRequest.id)
-                    : plannerRepository.permanentlyDelete(
-                        permanentRequest.kind,
-                        permanentRequest.id,
-                      )
+                    : permanentRequest.kind === 'routine'
+                      ? routineRepository.permanentlyDeleteRoutine(permanentRequest.id)
+                      : permanentRequest.kind === 'routineItem'
+                        ? routineRepository.permanentlyDeleteItem(permanentRequest.id)
+                        : plannerRepository.permanentlyDelete(
+                            permanentRequest.kind,
+                            permanentRequest.id,
+                          )
             ).then(() => setPermanentRequest(null))
           }
         />
@@ -938,6 +963,7 @@ function RecentlyDeletedPanel({ snapshot }: { snapshot: PlannerSnapshot }) {
             void Promise.all([
               plannerRepository.emptyRecentlyDeleted(),
               calendarRepository.emptyRecentlyDeleted(),
+              routineRepository.emptyRecentlyDeleted(),
             ]).then(() => setEmptyConfirm(false))
           }
         />
@@ -1049,6 +1075,22 @@ function deletedItems(snapshot: PlannerSnapshot) {
       label: template.name,
       location: 'Event template',
       deletedAt: template.deletedAt!,
+      canDeleteForever: true,
+    })),
+    ...snapshot.deletedRoutines.map((routine) => ({
+      kind: 'routine' as const,
+      id: routine.id,
+      label: routine.name,
+      location: 'Routine definition; historical runs are retained',
+      deletedAt: routine.deletedAt!,
+      canDeleteForever: true,
+    })),
+    ...snapshot.deletedRoutineItems.map((item) => ({
+      kind: 'routineItem' as const,
+      id: item.id,
+      label: item.title,
+      location: `Routine item in ${[...snapshot.routines, ...snapshot.deletedRoutines].find((routine) => routine.id === item.routineId)?.name ?? 'deleted routine'}`,
+      deletedAt: item.deletedAt!,
       canDeleteForever: true,
     })),
   ].sort((left, right) => right.deletedAt.localeCompare(left.deletedAt));

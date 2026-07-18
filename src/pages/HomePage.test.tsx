@@ -8,6 +8,7 @@ import { localDateFromDate } from '../data/planning';
 import { plannerRepository } from '../data/plannerRepository';
 import { calendarRepository } from '../data/calendarRepository';
 import { DEFAULT_CALENDAR_ID } from '../data/plannerTypes';
+import { routineRepository } from '../data/routineRepository';
 
 async function resetDatabase() {
   database.close();
@@ -198,6 +199,39 @@ describe('Phase 2B Home dashboard', () => {
         screen.getByLabelText<HTMLSelectElement>('Dashboard layout').selectedOptions[0]
           ?.textContent,
       ).toContain('Overview'),
+    );
+  });
+
+  it('renders the optional Current Routine card with a start action', async () => {
+    await routineRepository.saveRoutine({
+      name: 'Dashboard routine',
+      color: '#5B67C8',
+      isActive: true,
+      presentationStyle: 'checklist',
+      scheduleKind: 'daily',
+      selectedWeekdays: [],
+      defaultSection: 'morning',
+      items: [
+        {
+          id: crypto.randomUUID(),
+          title: 'First routine item',
+          order: 0,
+          isActive: true,
+        },
+      ],
+      variants: [],
+    });
+    render(
+      <MemoryRouter>
+        <App />
+      </MemoryRouter>,
+    );
+    const card = await screen.findByRole('region', { name: 'Current Routine' });
+    expect(within(card).getByText('Dashboard routine')).toBeVisible();
+    expect(within(card).getByText('First routine item')).toBeVisible();
+    expect(within(card).getByRole('link', { name: 'Start' })).toHaveAttribute(
+      'href',
+      expect.stringContaining('/routines?start='),
     );
   });
 });

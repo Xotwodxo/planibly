@@ -7,6 +7,7 @@ import { CalendarPage } from './pages/CalendarPage';
 import { ListsPage } from './pages/ListsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { PlanPage } from './pages/PlanPage';
+import { RoutinesPage } from './pages/RoutinesPage';
 
 export function App() {
   return (
@@ -16,6 +17,7 @@ export function App() {
         <Route path="plan" element={<PlanPage />} />
         <Route path="calendar" element={<CalendarPage />} />
         <Route path="lists" element={<ListsPage />} />
+        <Route path="routines" element={<RoutinesPage />} />
         <Route
           path="insights"
           element={

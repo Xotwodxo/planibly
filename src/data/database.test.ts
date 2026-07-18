@@ -37,6 +37,12 @@ describe('PlaniblyDatabase', () => {
       'planningCapacities',
       'recurrenceExceptions',
       'recurrenceRules',
+      'routineItems',
+      'routineOccurrenceAdjustments',
+      'routineRunItems',
+      'routineRuns',
+      'routineVariants',
+      'routines',
       'tags',
       'taskRelationships',
       'taskSteps',
@@ -162,7 +168,7 @@ describe('PlaniblyDatabase', () => {
     expect(await upgraded.tags.count()).toBe(0);
     expect(await upgraded.taskTags.count()).toBe(0);
     expect(await upgraded.taskRelationships.count()).toBe(0);
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '11' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '12' });
 
     upgraded.close();
     await upgraded.delete();
@@ -214,7 +220,7 @@ describe('PlaniblyDatabase', () => {
       createdAt: timestamp,
       modifiedAt: timestamp,
     });
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '11' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '12' });
 
     upgraded.close();
     await upgraded.delete();
@@ -260,7 +266,7 @@ describe('PlaniblyDatabase', () => {
     expect(task?.deadlineDate).toBeUndefined();
     expect(task?.flexibleStartDate).toBeUndefined();
     expect(task?.exactStartTime).toBeUndefined();
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '11' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '12' });
 
     expect(task?.completedAt).toBeUndefined();
 
@@ -400,7 +406,7 @@ describe('PlaniblyDatabase', () => {
     });
     expect(await upgraded.plannedPlacements.get('unplanned-v7')).toBeUndefined();
     expect(await upgraded.planningCapacities.count()).toBe(0);
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '11' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '12' });
 
     upgraded.close();
     await upgraded.delete();
@@ -540,7 +546,7 @@ describe('PlaniblyDatabase', () => {
     expect(await upgraded.recurrenceRules.count()).toBe(0);
     expect(await upgraded.recurrenceExceptions.count()).toBe(0);
     expect(await upgraded.eventTemplates.count()).toBe(0);
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '11' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '12' });
     upgraded.close();
     await upgraded.delete();
   });
@@ -610,7 +616,103 @@ describe('PlaniblyDatabase', () => {
     expect(await upgraded.calendarImportSources.count()).toBe(0);
     expect(await upgraded.calendarImportBatches.count()).toBe(0);
     expect(await upgraded.externalEventMappings.count()).toBe(0);
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '11' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '12' });
+    upgraded.close();
+    await upgraded.delete();
+  });
+
+  it('upgrades Phase 3C v11 data append-only and creates empty routine stores', async () => {
+    const name = `planibly-v11-routines-${crypto.randomUUID()}`;
+    const legacy = new Dexie(name);
+    legacy.version(11).stores(schemaVersions.find((schema) => schema.version === 11)!.stores);
+    await legacy.open();
+    const timestamp = '2026-07-17T10:00:00.000Z';
+    await legacy.table('metadata').put({ key: 'schemaVersion', value: '11', updatedAt: timestamp });
+    await legacy.table('tasks').put({
+      id: 'v11-task',
+      listId: INBOX_LIST_ID,
+      title: 'Preserved task',
+      status: 'available',
+      order: 0,
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    await legacy.table('calendars').put({
+      id: 'v11-calendar',
+      name: 'Imported diary',
+      color: '#5B67C8',
+      order: 0,
+      isVisible: true,
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    await legacy.table('calendarEvents').put({
+      id: 'v11-event',
+      calendarId: 'v11-calendar',
+      title: 'Preserved import',
+      startDate: '2026-07-18',
+      endDate: '2026-07-18',
+      allDay: true,
+      externalUid: 'routine-migration@example.test',
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    await legacy.table('calendarImportSources').put({
+      id: 'v11-source',
+      name: 'Fixture source',
+      fingerprint: 'fixture-fingerprint',
+      destinationCalendarId: 'v11-calendar',
+      lastImportedAt: timestamp,
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    await legacy.table('calendarImportBatches').put({
+      id: 'v11-batch',
+      sourceId: 'v11-source',
+      destinationCalendarId: 'v11-calendar',
+      importedAt: timestamp,
+      addedCount: 1,
+      updatedCount: 0,
+      skippedCount: 0,
+      warningCount: 0,
+    });
+    await legacy.table('externalEventMappings').put({
+      id: 'v11-mapping',
+      sourceId: 'v11-source',
+      externalUid: 'routine-migration@example.test',
+      recurrenceKey: '',
+      eventId: 'v11-event',
+      lastImportedAt: timestamp,
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    legacy.close();
+
+    const upgraded = new PlaniblyDatabase(name);
+    await initializeDatabase(upgraded);
+    await expect(upgraded.tasks.get('v11-task')).resolves.toMatchObject({
+      title: 'Preserved task',
+    });
+    await expect(upgraded.calendarEvents.get('v11-event')).resolves.toMatchObject({
+      title: 'Preserved import',
+      externalUid: 'routine-migration@example.test',
+    });
+    await expect(upgraded.calendarImportSources.get('v11-source')).resolves.toMatchObject({
+      destinationCalendarId: 'v11-calendar',
+    });
+    await expect(upgraded.calendarImportBatches.get('v11-batch')).resolves.toMatchObject({
+      sourceId: 'v11-source',
+    });
+    await expect(upgraded.externalEventMappings.get('v11-mapping')).resolves.toMatchObject({
+      eventId: 'v11-event',
+    });
+    expect(await upgraded.routines.count()).toBe(0);
+    expect(await upgraded.routineItems.count()).toBe(0);
+    expect(await upgraded.routineVariants.count()).toBe(0);
+    expect(await upgraded.routineRuns.count()).toBe(0);
+    expect(await upgraded.routineRunItems.count()).toBe(0);
+    expect(await upgraded.routineOccurrenceAdjustments.count()).toBe(0);
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '12' });
     upgraded.close();
     await upgraded.delete();
   });

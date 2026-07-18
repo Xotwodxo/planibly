@@ -99,7 +99,7 @@ describe('DashboardRepository', () => {
     expect(state.layouts.filter((layout) => layout.isDefault)).toHaveLength(1);
     expect(state.layouts.some((layout) => layout.id === state.activeLayoutId)).toBe(true);
     expect(repaired.name).toBe('Recovered dashboard');
-    expect(repaired.cards).toHaveLength(9);
+    expect(repaired.cards).toHaveLength(10);
     expect(repaired.cards.find((card) => card.type === 'today')?.size).toBe('standard');
     expect(repaired.cards.find((card) => card.type === 'quickAdd')?.hidden).toBe(false);
 
