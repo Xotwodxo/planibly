@@ -112,6 +112,111 @@ test('persists a mobile calendar event through reload and offline reopening', as
   await context.setOffline(false);
 });
 
+test('imports and exports ICS locally on mobile and retains imported data offline', async ({
+  page,
+  context,
+}, testInfo) => {
+  test.skip(!testInfo.project.name.includes('mobile'), 'Mobile-only Phase 3C flow');
+  await page.goto('/planibly/calendar');
+  await expect(page.getByRole('heading', { name: 'Appointments, kept local' })).toBeVisible();
+  const compactToday = await page.evaluate(() => {
+    const now = new Date();
+    return [
+      String(now.getFullYear()).padStart(4, '0'),
+      String(now.getMonth() + 1).padStart(2, '0'),
+      String(now.getDate()).padStart(2, '0'),
+    ].join('');
+  });
+  await page.getByRole('button', { name: 'Import ICS' }).click();
+  const importer = page.getByRole('dialog', { name: 'Import ICS calendar' });
+  await importer.getByRole('button', { name: 'Paste ICS text' }).click();
+  await importer
+    .getByLabel('ICS text')
+    .fill(
+      [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'X-WR-CALNAME:Fictional mobile diary',
+        'BEGIN:VEVENT',
+        'UID:mobile-phase-3c@example.test',
+        'SUMMARY:Offline imported appointment',
+        `DTSTART;VALUE=DATE:${compactToday}`,
+        'END:VEVENT',
+        'END:VCALENDAR',
+      ].join('\n'),
+    );
+  await importer.getByRole('button', { name: 'Preview import' }).click();
+  await expect(importer.getByRole('heading', { name: 'Import preview' })).toBeVisible();
+  await importer.getByRole('button', { name: 'Approve import' }).click();
+  await expect(
+    page.getByRole('button', { name: /Offline imported appointment/ }).first(),
+  ).toBeVisible();
+
+  await page.getByRole('button', { name: 'Export' }).click();
+  const exporter = page.getByRole('dialog', { name: 'Export calendar data' });
+  await exporter.getByRole('button', { name: 'Prepare ICS' }).click();
+  await expect(exporter.getByRole('button', { name: 'Download ICS' })).toBeVisible();
+  await expect(exporter.getByText(/will not sync automatically/)).toBeVisible();
+  await exporter.getByRole('button', { name: 'Close dialog' }).click();
+
+  await page.evaluate(async () => navigator.serviceWorker.ready);
+  await context.setOffline(true);
+  try {
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(
+      page.getByRole('button', { name: /Offline imported appointment/ }).first(),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Import history' }).click();
+    await expect(
+      page
+        .getByRole('dialog', { name: 'Import history' })
+        .getByText('Fictional mobile diary')
+        .first(),
+    ).toBeVisible();
+  } finally {
+    await context.setOffline(false);
+  }
+});
+
+test('contains the Phase 3C import dialog at mobile large text', async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.includes('mobile'), 'Mobile-only Phase 3C responsive check');
+  await page.goto('/planibly/calendar');
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '200%';
+  });
+  await page.getByRole('button', { name: 'Import ICS' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Import ICS calendar' });
+  await expect(dialog.getByLabel('Calendar file')).toBeVisible();
+  const containment = await dialog.evaluate((element) => {
+    const rectangle = element.getBoundingClientRect();
+    return {
+      left: rectangle.left,
+      right: rectangle.right,
+      viewportWidth: document.documentElement.clientWidth,
+      scrollWidth: element.scrollWidth,
+      clientWidth: element.clientWidth,
+      offenders: Array.from(element.querySelectorAll<HTMLElement>('*'))
+        .map((child) => ({
+          element: `${child.tagName.toLowerCase()}.${child.className}`,
+          scrollWidth: child.scrollWidth,
+          clientWidth: child.clientWidth,
+          left: Math.round(child.getBoundingClientRect().left),
+          right: Math.round(child.getBoundingClientRect().right),
+        }))
+        .filter(
+          (child) =>
+            child.scrollWidth > child.clientWidth + 1 ||
+            child.right > element.getBoundingClientRect().right + 1,
+        ),
+    };
+  });
+  expect(containment.left).toBeGreaterThanOrEqual(0);
+  expect(containment.right).toBeLessThanOrEqual(containment.viewportWidth);
+  expect(containment.scrollWidth, JSON.stringify(containment.offenders)).toBeLessThanOrEqual(
+    containment.clientWidth,
+  );
+});
+
 test('keeps the calendar month and event dialog contained at large text', async ({
   page,
 }, testInfo) => {

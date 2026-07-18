@@ -470,9 +470,11 @@ export class CalendarRepository {
       this.db.calendarEvents,
       this.db.recurrenceRules,
       this.db.recurrenceExceptions,
+      this.db.externalEventMappings,
       async () => {
         await this.db.recurrenceExceptions.where('seriesEventId').equals(id).delete();
         await this.db.recurrenceRules.where('eventId').equals(id).delete();
+        await this.db.externalEventMappings.where('eventId').equals(id).delete();
         await this.db.calendarEvents.delete(id);
       },
     );
@@ -745,10 +747,12 @@ export class CalendarRepository {
       this.db.calendarEvents,
       this.db.recurrenceRules,
       this.db.recurrenceExceptions,
+      this.db.externalEventMappings,
       async () => {
         for (const eventId of eventIds) {
           await this.db.recurrenceExceptions.where('seriesEventId').equals(eventId).delete();
           await this.db.recurrenceRules.where('eventId').equals(eventId).delete();
+          await this.db.externalEventMappings.where('eventId').equals(eventId).delete();
         }
         await Promise.all(
           externalOverrides.map((exception) =>
@@ -791,15 +795,19 @@ export class CalendarRepository {
     );
     await this.db.transaction(
       'rw',
-      this.db.calendars,
-      this.db.calendarEvents,
-      this.db.recurrenceRules,
-      this.db.recurrenceExceptions,
-      this.db.eventTemplates,
+      [
+        this.db.calendars,
+        this.db.calendarEvents,
+        this.db.recurrenceRules,
+        this.db.recurrenceExceptions,
+        this.db.eventTemplates,
+        this.db.externalEventMappings,
+      ],
       async () => {
         for (const eventId of eventIds) {
           await this.db.recurrenceExceptions.where('seriesEventId').equals(eventId).delete();
           await this.db.recurrenceRules.where('eventId').equals(eventId).delete();
+          await this.db.externalEventMappings.where('eventId').equals(eventId).delete();
         }
         const externalOverrides = (await this.db.recurrenceExceptions.toArray()).filter(
           (exception) =>

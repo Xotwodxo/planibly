@@ -15,6 +15,11 @@ import {
 import { addCalendarDays, formatLocalDate, localDateFromDate } from '../data/planning';
 import { expandCalendarOccurrences, recurrenceSummary } from '../data/recurrence';
 import { EventEditorDialog } from '../features/calendar/EventEditorDialog';
+import {
+  IcsExportDialog,
+  IcsImportDialog,
+  ImportHistoryDialog,
+} from '../features/calendar/IcsTools';
 import { RecurrenceFields } from '../features/calendar/RecurrenceFields';
 import { showDeletionUndo } from '../features/planner/plannerEvents';
 import { usePlannerSnapshot } from '../features/planner/usePlannerSnapshot';
@@ -45,6 +50,9 @@ export function CalendarPage() {
   const [editing, setEditing] = useState<CalendarOccurrence | 'new' | null>(null);
   const [managing, setManaging] = useState(false);
   const [managingTemplates, setManagingTemplates] = useState(false);
+  const [importing, setImporting] = useState<true | string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [showingImportHistory, setShowingImportHistory] = useState(false);
   const [upcomingDays, setUpcomingDays] = useState(14);
   const [announcement, setAnnouncement] = useState('');
   const emptyDays = useMemo(() => monthGrid(shownMonth.year, shownMonth.monthIndex), [shownMonth]);
@@ -84,6 +92,15 @@ export function CalendarPage() {
           <p>See time commitments without turning them into tasks.</p>
         </div>
         <div className="inline-actions">
+          <Button variant="secondary" onClick={() => setImporting(true)}>
+            Import ICS
+          </Button>
+          <Button variant="secondary" onClick={() => setExporting(true)}>
+            Export
+          </Button>
+          <Button variant="quiet" onClick={() => setShowingImportHistory(true)}>
+            Import history
+          </Button>
           <Button variant="secondary" onClick={() => setManaging(true)}>
             Manage calendars
           </Button>
@@ -231,6 +248,28 @@ export function CalendarPage() {
           templates={snapshot.eventTemplates}
           calendars={snapshot.calendars}
           onClose={() => setManagingTemplates(false)}
+          onAnnounce={setAnnouncement}
+        />
+      ) : null}
+      {importing ? (
+        <IcsImportDialog
+          calendars={snapshot.calendars}
+          sourceId={typeof importing === 'string' ? importing : undefined}
+          onClose={() => setImporting(null)}
+          onImported={setAnnouncement}
+        />
+      ) : null}
+      {exporting ? (
+        <IcsExportDialog snapshot={snapshot} onClose={() => setExporting(false)} />
+      ) : null}
+      {showingImportHistory ? (
+        <ImportHistoryDialog
+          calendars={snapshot.calendars}
+          onClose={() => setShowingImportHistory(false)}
+          onReimport={(sourceId) => {
+            setShowingImportHistory(false);
+            setImporting(sourceId);
+          }}
           onAnnounce={setAnnouncement}
         />
       ) : null}

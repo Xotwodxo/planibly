@@ -729,6 +729,7 @@ select {
   box-shadow: var(--elevation-2);
   color: var(--color-text);
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .dialog::backdrop {
@@ -744,6 +745,10 @@ select {
   margin-bottom: var(--space-5);
 }
 
+.dialog__heading > div {
+  min-width: 0;
+}
+
 .dialog__heading h2 {
   margin: 0;
   font-size: var(--font-size-xl);
@@ -752,6 +757,7 @@ select {
 .dialog__heading p {
   margin: var(--space-2) 0 0;
   color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
 }
 
 .dialog__close {
@@ -2623,6 +2629,103 @@ select {
   color: var(--color-text-secondary);
 }
 
+.ics-dialog {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.ics-dialog fieldset {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2);
+}
+
+.ics-dialog textarea,
+.ics-dialog select,
+.ics-dialog input {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.ics-dialog input[type='file'] {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ics-dialog .button {
+  max-width: 100%;
+  height: auto;
+  min-height: 2.75rem;
+  white-space: normal;
+}
+
+.ics-summary {
+  padding: var(--space-3);
+  border-radius: var(--radius-2);
+  background: var(--color-surface-secondary);
+}
+
+.ics-summary h3 {
+  margin-top: 0;
+}
+
+.ics-summary dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.ics-summary dl > div {
+  min-width: 0;
+}
+
+.ics-summary dt {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.ics-summary dd {
+  margin: var(--space-1) 0 0;
+  overflow-wrap: anywhere;
+}
+
+.ics-record-list,
+.import-batches {
+  display: grid;
+  gap: var(--space-2);
+  padding: 0;
+  list-style: none;
+}
+
+.ics-record-list li,
+.import-batches li,
+.import-source {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2);
+}
+
+.ics-record-list span,
+.import-batches small,
+.import-source p {
+  color: var(--color-text-secondary);
+}
+
+.privacy-note {
+  padding: var(--space-3);
+  border-inline-start: 0.25rem solid var(--color-accent);
+  background: var(--color-surface-secondary);
+}
+
 @media (min-width: 60rem) {
   .calendar-agendas {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -2647,6 +2750,15 @@ select {
   }
   .month-day {
     min-height: 3.5rem;
+  }
+  .ics-summary dl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ics-dialog .dialog__actions,
+  .ics-dialog .segmented-control,
+  .import-source .inline-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 

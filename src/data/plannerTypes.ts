@@ -173,6 +173,53 @@ export type EventTemplateRecord = {
   deletionGroupId?: string;
 };
 
+export type CalendarImportSourceRecord = {
+  id: string;
+  sourceLabel: string;
+  lastFilename?: string;
+  calendarName?: string;
+  destinationCalendarId?: string;
+  importedRecordCount: number;
+  hasLocalChanges: boolean;
+  createdAt: string;
+  lastImportedAt: string;
+};
+
+export type CalendarImportBatchRecord = {
+  id: string;
+  sourceId: string;
+  filename?: string;
+  calendarName?: string;
+  destinationCalendarId: string;
+  importedAt: string;
+  validEventCount: number;
+  recurringSeriesCount: number;
+  newCount: number;
+  unchangedCount: number;
+  updatedCount: number;
+  conflictCount: number;
+  cancelledCount: number;
+  skippedCount: number;
+  warningCount: number;
+};
+
+export type ExternalEventMappingRecord = {
+  id: string;
+  sourceId: string;
+  externalUid: string;
+  recurrenceKey: string;
+  targetKind: 'event' | 'exception';
+  eventId: string;
+  exceptionId?: string;
+  sourceFingerprint: string;
+  planiblyModifiedAtAtImport: string;
+  sequence?: number;
+  externalLastModified?: string;
+  sourceTimezone?: string;
+  importedAt: string;
+  lastImportedAt: string;
+};
+
 export type CalendarOccurrence = CalendarEventRecord & {
   sourceEventId: string;
   originalStartDate: string;

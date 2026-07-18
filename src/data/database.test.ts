@@ -24,10 +24,13 @@ describe('PlaniblyDatabase', () => {
     expect(database.tables.map((table) => table.name).sort()).toEqual([
       'areas',
       'calendarEvents',
+      'calendarImportBatches',
+      'calendarImportSources',
       'calendars',
       'dashboardLayouts',
       'diagnostics',
       'eventTemplates',
+      'externalEventMappings',
       'lists',
       'metadata',
       'plannedPlacements',
@@ -159,7 +162,7 @@ describe('PlaniblyDatabase', () => {
     expect(await upgraded.tags.count()).toBe(0);
     expect(await upgraded.taskTags.count()).toBe(0);
     expect(await upgraded.taskRelationships.count()).toBe(0);
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '10' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '11' });
 
     upgraded.close();
     await upgraded.delete();
@@ -211,7 +214,7 @@ describe('PlaniblyDatabase', () => {
       createdAt: timestamp,
       modifiedAt: timestamp,
     });
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '10' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '11' });
 
     upgraded.close();
     await upgraded.delete();
@@ -257,7 +260,7 @@ describe('PlaniblyDatabase', () => {
     expect(task?.deadlineDate).toBeUndefined();
     expect(task?.flexibleStartDate).toBeUndefined();
     expect(task?.exactStartTime).toBeUndefined();
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '10' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '11' });
 
     expect(task?.completedAt).toBeUndefined();
 
@@ -397,7 +400,7 @@ describe('PlaniblyDatabase', () => {
     });
     expect(await upgraded.plannedPlacements.get('unplanned-v7')).toBeUndefined();
     expect(await upgraded.planningCapacities.count()).toBe(0);
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '10' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '11' });
 
     upgraded.close();
     await upgraded.delete();
@@ -537,7 +540,77 @@ describe('PlaniblyDatabase', () => {
     expect(await upgraded.recurrenceRules.count()).toBe(0);
     expect(await upgraded.recurrenceExceptions.count()).toBe(0);
     expect(await upgraded.eventTemplates.count()).toBe(0);
-    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '10' });
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '11' });
+    upgraded.close();
+    await upgraded.delete();
+  });
+
+  it('upgrades Phase 3B v10 data append-only and creates empty ICS provenance stores', async () => {
+    const name = `planibly-v10-ics-${crypto.randomUUID()}`;
+    const legacy = new Dexie(name);
+    legacy.version(10).stores(schemaVersions.find((schema) => schema.version === 10)!.stores);
+    await legacy.open();
+    const timestamp = '2026-07-16T10:00:00.000Z';
+    await legacy.table('metadata').put({ key: 'schemaVersion', value: '10', updatedAt: timestamp });
+    await legacy.table('calendars').put({
+      id: 'v10-calendar',
+      name: 'Existing',
+      color: '#5B67C8',
+      order: 0,
+      isVisible: true,
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    await legacy.table('calendarEvents').put({
+      id: 'v10-event',
+      calendarId: 'v10-calendar',
+      title: 'Recurring appointment',
+      startDate: '2026-07-20',
+      endDate: '2026-07-20',
+      allDay: false,
+      startTime: '09:00',
+      endTime: '10:00',
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    await legacy.table('recurrenceRules').put({
+      id: 'v10-rule',
+      eventId: 'v10-event',
+      frequency: 'daily',
+      interval: 1,
+      endMode: 'count',
+      occurrenceCount: 3,
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    await legacy.table('eventTemplates').put({
+      id: 'v10-template',
+      name: 'Meeting',
+      title: 'Meeting',
+      allDay: false,
+      startTime: '09:00',
+      endTime: '10:00',
+      order: 0,
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+    });
+    legacy.close();
+
+    const upgraded = new PlaniblyDatabase(name);
+    await initializeDatabase(upgraded);
+    await expect(upgraded.calendarEvents.get('v10-event')).resolves.toMatchObject({
+      title: 'Recurring appointment',
+    });
+    await expect(upgraded.recurrenceRules.get('v10-rule')).resolves.toMatchObject({
+      occurrenceCount: 3,
+    });
+    await expect(upgraded.eventTemplates.get('v10-template')).resolves.toMatchObject({
+      name: 'Meeting',
+    });
+    expect(await upgraded.calendarImportSources.count()).toBe(0);
+    expect(await upgraded.calendarImportBatches.count()).toBe(0);
+    expect(await upgraded.externalEventMappings.count()).toBe(0);
+    await expect(upgraded.metadata.get('schemaVersion')).resolves.toMatchObject({ value: '11' });
     upgraded.close();
     await upgraded.delete();
   });

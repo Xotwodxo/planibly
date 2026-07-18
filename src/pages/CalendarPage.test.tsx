@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { App } from '../App';
+import { calendarRepository } from '../data/calendarRepository';
 import { database, initializeDatabase } from '../data/database';
 
 async function reset() {
@@ -117,5 +118,73 @@ describe('Phase 3A Calendar workspace', () => {
     expect(within(create).getByLabelText('Title')).toHaveValue('Review the week');
     await user.click(within(create).getByRole('button', { name: 'Save event' }));
     expect((await screen.findAllByRole('button', { name: /Review the week/ }))[0]).toBeVisible();
+  });
+
+  it('previews pasted ICS before writing, imports it, and records local import history', async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/calendar']}>
+        <App />
+      </MemoryRouter>,
+    );
+    await screen.findByRole('heading', { name: 'Appointments, kept local' });
+    await user.click(screen.getByRole('button', { name: 'Import ICS' }));
+    const importer = screen.getByRole('dialog', { name: 'Import ICS calendar' });
+    await user.click(within(importer).getByRole('button', { name: 'Paste ICS text' }));
+    await user.type(
+      within(importer).getByLabelText('ICS text'),
+      [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'X-WR-CALNAME:Fictional appointments',
+        'BEGIN:VEVENT',
+        'UID:component-test@example.test',
+        'SUMMARY:Imported appointment',
+        'DTSTART:20260720T090000',
+        'DTEND:20260720T100000',
+        'END:VEVENT',
+        'END:VCALENDAR',
+      ].join('\n'),
+    );
+    await user.click(within(importer).getByRole('button', { name: 'Preview import' }));
+    expect(await within(importer).findByRole('heading', { name: 'Import preview' })).toBeVisible();
+    expect(within(importer).getByText('Fictional appointments')).toBeVisible();
+    expect(await database.calendarEvents.count()).toBe(0);
+    await user.click(within(importer).getByRole('button', { name: 'Approve import' }));
+    expect(
+      (await screen.findAllByRole('button', { name: /Imported appointment/ }))[0],
+    ).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Import history' }));
+    const history = screen.getByRole('dialog', { name: 'Import history' });
+    expect(
+      await within(history).findByRole('heading', { name: 'Fictional appointments' }),
+    ).toBeVisible();
+    expect(within(history).getByRole('button', { name: 'Re-import file' })).toBeVisible();
+  });
+
+  it('prepares a validated one-event export and explains that it is not synchronisation', async () => {
+    const user = userEvent.setup();
+    await calendarRepository.saveEvent({
+      calendarId: '90000000-0000-4000-8000-000000000001',
+      title: 'Export appointment',
+      startDate: '2026-07-20',
+      endDate: '2026-07-20',
+      allDay: false,
+      startTime: '09:00',
+      endTime: '10:00',
+    });
+    render(
+      <MemoryRouter initialEntries={['/calendar']}>
+        <App />
+      </MemoryRouter>,
+    );
+    await screen.findByRole('heading', { name: 'Appointments, kept local' });
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    const exporter = screen.getByRole('dialog', { name: 'Export calendar data' });
+    expect(within(exporter).getByText(/Later changes will not sync automatically/)).toBeVisible();
+    await user.click(within(exporter).getByRole('button', { name: 'Prepare ICS' }));
+    expect(await within(exporter).findByText('Calendar file validated and ready.')).toBeVisible();
+    expect(within(exporter).getByRole('button', { name: 'Download ICS' })).toBeEnabled();
   });
 });

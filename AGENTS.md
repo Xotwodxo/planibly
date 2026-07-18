@@ -3,8 +3,8 @@
 ## Scope
 
 Read `Docs/planibly-pwa-product-specification.md` before product work and follow its phased roadmap.
-The current boundary is Phase 3B: recurring internal events and reusable event templates. Do not add
-reminders, external calendar access, ICS, timelines, drag scheduling, automatic scheduling,
+The current boundary is Phase 3C: local ICS import, export, provenance, and device-calendar file
+handoff. Do not add live provider sync, OAuth, CalDAV, reminders, timelines, drag scheduling, automatic scheduling,
 shopping-specific behavior, productivity scoring, or insights until explicitly begun.
 
 Planibly must remain free, private, local-first, and useful without a backend. Do not add accounts,

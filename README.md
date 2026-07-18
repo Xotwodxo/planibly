@@ -1,11 +1,11 @@
 # Planibly
 
 Planibly is a zero-cost, private, offline-first personal planning PWA. This repository currently
-implements the installable foundation and the local planning system through **Phase 3B**. Alongside
+implements the installable foundation and the local planning system through **Phase 3C**. Alongside
 organisation, projects, search, recovery, planning, capacity, and the configurable Home dashboard,
-it now includes private internal calendars, appointments, recurring occurrences, and reusable event
-templates integrated into Calendar, Plan, and Home. Reminders, external calendar access, ICS, and
-timelines remain out of scope.
+it now includes private internal calendars, appointments, recurring occurrences, reusable event
+templates, and local ICS import/export with explicit preview and conflict handling. Live calendar
+synchronisation, reminders, provider accounts, and timelines remain out of scope.
 
 ## What Phase 0 contains
 
@@ -92,7 +92,19 @@ timelines remain out of scope.
 - Optional reusable event templates with CRUD, ordering, fallback calendar, recovery, and permanent deletion
 - Dexie schema version 10 with recurrence rules, exceptions, and event template stores
 
-There is no backend, account, analytics, external AI, paid service, or native iOS integration.
+## What Phase 3C contains
+
+- Local `.ics` file-picker and pasted-text import with a mandatory no-write preview
+- Bounded VEVENT parsing for all-day/timed events, supported recurrence, exclusions, and overrides
+- Explicit floating, UTC, TZID, and unresolved-timezone handling with UK DST coverage
+- External UID provenance, duplicate/re-import classification, local-change detection, and conflict choices
+- Transactional import into a new or active calendar plus removable summary-only import history
+- Validated ICS export for events, series, occurrences, calendars, date ranges, and visible calendars
+- Web Share file handoff where supported and an always-available download fallback
+- Dexie schema version 11 with import-source, import-batch, and external-record mapping stores
+
+There is no backend, account, analytics, external AI, paid service, provider OAuth, or native iOS
+integration. ICS transfer creates a copy; later changes do not synchronise automatically.
 
 ## Requirements
 
@@ -191,5 +203,6 @@ See [Docs/phase-0-architecture.md](Docs/phase-0-architecture.md),
 [Docs/phase-2b-architecture.md](Docs/phase-2b-architecture.md), and
 [Docs/phase-2c-architecture.md](Docs/phase-2c-architecture.md), and
 [Docs/phase-3a-architecture.md](Docs/phase-3a-architecture.md), and
-[Docs/phase-3b-architecture.md](Docs/phase-3b-architecture.md) for the current architecture, data
+[Docs/phase-3b-architecture.md](Docs/phase-3b-architecture.md), and
+[Docs/phase-3c-architecture.md](Docs/phase-3c-architecture.md) for the current architecture, data
 invariants, safety bounds, and manual device checks.
